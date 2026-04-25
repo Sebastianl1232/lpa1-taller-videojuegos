@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import pygame
 
+from game import settings
 from game.entities import Enemy
 
 
@@ -30,9 +31,18 @@ class ObjectiveZone:
     completed: bool = False
 
 
+@dataclass
+class Decoration:
+    rect: pygame.Rect
+    color: tuple[int, int, int]
+    kind: str
+
+
 class World:
-    def __init__(self) -> None:
+    def __init__(self, difficulty: str = "normal") -> None:
+        self.difficulty = difficulty if difficulty in ("easy", "normal", "hard") else "normal"
         self.walls = self._build_walls()
+        self.decorations = self._spawn_decorations()
         self.enemies = self._spawn_enemies()
         self.treasures = self._spawn_treasures()
         self.traps = self._spawn_traps()
@@ -53,27 +63,37 @@ class World:
         ]
 
     def _spawn_enemies(self) -> list[Enemy]:
+        profile = settings.DIFFICULTY_PROFILES[self.difficulty]
+        enemy_specs = [
+            (120, 200, 70, "terrestre"),
+            (520, 130, 90, "volador"),
+            (720, 250, 80, "terrestre"),
+            (330, 520, 95, "volador"),
+            (760, 520, 110, "mini_jefe"),
+        ]
+
         return [
-            Enemy(120, 200, patrol_width=70, enemy_type="terrestre"),
-            Enemy(520, 130, patrol_width=90, enemy_type="volador"),
-            Enemy(720, 250, patrol_width=80, enemy_type="terrestre"),
-            Enemy(330, 520, patrol_width=95, enemy_type="volador"),
-            Enemy(760, 520, patrol_width=110, enemy_type="mini_jefe"),
+            Enemy(x, y, patrol_width=patrol_width, enemy_type=enemy_type, difficulty_profile=profile)
+            for x, y, patrol_width, enemy_type in enemy_specs
         ]
 
     def _spawn_treasures(self) -> list[Treasure]:
+        profile = settings.DIFFICULTY_PROFILES[self.difficulty]
+        values = [25, 35, 40, 30]
+        values = [max(10, int(value * profile["treasure_multiplier"])) for value in values]
         return [
-            Treasure(pygame.Rect(90, 560, 20, 20), value=25),
-            Treasure(pygame.Rect(390, 80, 20, 20), value=35),
-            Treasure(pygame.Rect(875, 90, 20, 20), value=40),
-            Treasure(pygame.Rect(705, 565, 20, 20), value=30),
+            Treasure(pygame.Rect(90, 560, 20, 20), value=values[0]),
+            Treasure(pygame.Rect(390, 80, 20, 20), value=values[1]),
+            Treasure(pygame.Rect(875, 90, 20, 20), value=values[2]),
+            Treasure(pygame.Rect(705, 565, 20, 20), value=values[3]),
         ]
 
     def _spawn_traps(self) -> list[ExplosiveTrap]:
+        profile = settings.DIFFICULTY_PROFILES[self.difficulty]
         return [
-            ExplosiveTrap(pygame.Rect(280, 200, 24, 24), damage=10),
-            ExplosiveTrap(pygame.Rect(560, 430, 24, 24), damage=14),
-            ExplosiveTrap(pygame.Rect(820, 300, 24, 24), damage=12),
+            ExplosiveTrap(pygame.Rect(280, 200, 24, 24), damage=max(1, int(10 * profile["trap_multiplier"]))),
+            ExplosiveTrap(pygame.Rect(560, 430, 24, 24), damage=max(1, int(14 * profile["trap_multiplier"]))),
+            ExplosiveTrap(pygame.Rect(820, 300, 24, 24), damage=max(1, int(12 * profile["trap_multiplier"]))),
         ]
 
     def _spawn_objective_zones(self) -> list[ObjectiveZone]:
@@ -81,4 +101,18 @@ class World:
             ObjectiveZone("Sector Norte", pygame.Rect(40, 40, 320, 200)),
             ObjectiveZone("Ruinas Centrales", pygame.Rect(380, 170, 250, 260)),
             ObjectiveZone("Santuario Sur", pygame.Rect(640, 430, 260, 170)),
+        ]
+
+    def _spawn_decorations(self) -> list[Decoration]:
+        return [
+            Decoration(pygame.Rect(75, 85, 16, 40), (122, 135, 155), "pillar"),
+            Decoration(pygame.Rect(132, 74, 18, 18), (255, 210, 120), "lamp"),
+            Decoration(pygame.Rect(330, 78, 18, 18), (255, 210, 120), "lamp"),
+            Decoration(pygame.Rect(472, 72, 16, 40), (122, 135, 155), "pillar"),
+            Decoration(pygame.Rect(666, 82, 18, 18), (255, 210, 120), "lamp"),
+            Decoration(pygame.Rect(862, 74, 16, 40), (122, 135, 155), "pillar"),
+            Decoration(pygame.Rect(116, 450, 28, 8), (84, 94, 114), "rune"),
+            Decoration(pygame.Rect(210, 532, 28, 8), (84, 94, 114), "rune"),
+            Decoration(pygame.Rect(500, 482, 28, 8), (84, 94, 114), "rune"),
+            Decoration(pygame.Rect(760, 472, 28, 8), (84, 94, 114), "rune"),
         ]
