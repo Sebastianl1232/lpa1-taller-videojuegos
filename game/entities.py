@@ -184,25 +184,26 @@ class Projectile:
 
 
 class Enemy:
-    def __init__(self, x: int, y: int, patrol_width: int, enemy_type: str = "terrestre") -> None:
+    def __init__(self, x: int, y: int, patrol_width: int, enemy_type: str = "terrestre", difficulty_profile: dict | None = None) -> None:
+        difficulty_profile = difficulty_profile or settings.DIFFICULTY_PROFILES["normal"]
         self.enemy_type = enemy_type
         if enemy_type == "mini_jefe":
             self.rect = pygame.Rect(x, y, 46, 46)
-            self.stats = Stats(max_hp=130, attack=17, defense=4)
-            self.speed = 135
+            self.stats = Stats(max_hp=max(1, int(130 * difficulty_profile["enemy_hp_multiplier"])), attack=max(1, int(17 * difficulty_profile["enemy_attack_multiplier"])), defense=4)
+            self.speed = int(135 * difficulty_profile["enemy_speed_multiplier"])
             self.chase_range = settings.BOSS_CHASE_RANGE
             self.burst_cooldown = 2.8
             self.burst_timer = 0.0
         elif enemy_type == "volador":
             self.rect = pygame.Rect(x, y, 30, 30)
-            self.stats = Stats(max_hp=36, attack=10, defense=2)
-            self.speed = 145
+            self.stats = Stats(max_hp=max(1, int(36 * difficulty_profile["enemy_hp_multiplier"])), attack=max(1, int(10 * difficulty_profile["enemy_attack_multiplier"])), defense=2)
+            self.speed = int(145 * difficulty_profile["enemy_speed_multiplier"])
             self.chase_range = settings.FLYING_CHASE_RANGE
             self.bob_phase = 0.0
         else:
             self.rect = pygame.Rect(x, y, 30, 30)
-            self.stats = Stats(max_hp=44, attack=11, defense=2)
-            self.speed = 110
+            self.stats = Stats(max_hp=max(1, int(44 * difficulty_profile["enemy_hp_multiplier"])), attack=max(1, int(11 * difficulty_profile["enemy_attack_multiplier"])), defense=2)
+            self.speed = int(110 * difficulty_profile["enemy_speed_multiplier"])
             self.chase_range = settings.GROUND_CHASE_RANGE
 
         self.hp = self.stats.max_hp
