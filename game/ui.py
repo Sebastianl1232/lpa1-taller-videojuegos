@@ -44,7 +44,7 @@ class UI:
 
         weapon_hint = self.small_font.render("1-3 cambian arma | Espacio: disparar | E: tienda", True, settings.TEXT_COLOR)
         unlocked_text = self.small_font.render(f"Desbloqueadas: {', '.join(unlocked_weapons)}", True, settings.TEXT_COLOR)
-        tip = self.small_font.render("Cuando subes de nivel eliges una mejora con 1, 2 o 3.", True, settings.TEXT_COLOR)
+        tip = self.small_font.render("Hay efectos visuales para disparos, impactos y recompensas.", True, settings.TEXT_COLOR)
         surface.blit(weapon_hint, (24, settings.SCREEN_HEIGHT - 60))
         surface.blit(unlocked_text, (24, settings.SCREEN_HEIGHT - 38))
         surface.blit(tip, (24, settings.SCREEN_HEIGHT - 16))
@@ -79,7 +79,7 @@ class UI:
             surface.blit(title_text, (x + 14, y + 52))
             surface.blit(desc_text, (x + 14, y + 88))
 
-    def draw_title_screen(self, surface: pygame.Surface) -> None:
+    def draw_title_screen(self, surface: pygame.Surface, best_score: int, total_runs: int, best_level: int) -> None:
         overlay = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
         overlay.fill((17, 21, 28))
         surface.blit(overlay, (0, 0))
@@ -88,11 +88,17 @@ class UI:
         subtitle = self.small_font.render("Explora, dispara, sube de nivel y vence al mini-jefe", True, settings.TEXT_COLOR)
         start_text = self.small_font.render("Enter o Espacio para empezar", True, settings.TEXT_COLOR)
         controls = self.small_font.render("WASD/Flechas: moverse | Espacio: disparar | P: pausa | 1-3: armas", True, settings.TEXT_COLOR)
+        save_info = self.small_font.render(
+            f"Partidas: {total_runs} | Mejor puntaje: {best_score} | Mejor nivel: {best_level}",
+            True,
+            settings.TEXT_COLOR,
+        )
 
         surface.blit(title, ((settings.SCREEN_WIDTH - title.get_width()) // 2, 170))
         surface.blit(subtitle, ((settings.SCREEN_WIDTH - subtitle.get_width()) // 2, 225))
         surface.blit(start_text, ((settings.SCREEN_WIDTH - start_text.get_width()) // 2, 305))
-        surface.blit(controls, ((settings.SCREEN_WIDTH - controls.get_width()) // 2, 365))
+        surface.blit(save_info, ((settings.SCREEN_WIDTH - save_info.get_width()) // 2, 350))
+        surface.blit(controls, ((settings.SCREEN_WIDTH - controls.get_width()) // 2, 390))
 
     def draw_pause_overlay(self, surface: pygame.Surface) -> None:
         overlay = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT), pygame.SRCALPHA)
