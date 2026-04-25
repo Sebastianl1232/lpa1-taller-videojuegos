@@ -79,7 +79,7 @@ class UI:
             surface.blit(title_text, (x + 14, y + 52))
             surface.blit(desc_text, (x + 14, y + 88))
 
-    def draw_title_screen(self, surface: pygame.Surface, best_score: int, total_runs: int, best_level: int) -> None:
+    def draw_title_screen(self, surface: pygame.Surface, best_score: int, total_runs: int, best_level: int, difficulty_label: str) -> None:
         overlay = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
         overlay.fill((17, 21, 28))
         surface.blit(overlay, (0, 0))
@@ -87,18 +87,20 @@ class UI:
         title = self.font.render("Aventura 2D", True, settings.TEXT_COLOR)
         subtitle = self.small_font.render("Explora, dispara, sube de nivel y vence al mini-jefe", True, settings.TEXT_COLOR)
         start_text = self.small_font.render("Enter o Espacio para empezar", True, settings.TEXT_COLOR)
-        controls = self.small_font.render("WASD/Flechas: moverse | Espacio: disparar | P: pausa | 1-3: armas", True, settings.TEXT_COLOR)
+        controls = self.small_font.render("1: Facil | 2: Normal | 3: Dificil | Enter: empezar", True, settings.TEXT_COLOR)
         save_info = self.small_font.render(
             f"Partidas: {total_runs} | Mejor puntaje: {best_score} | Mejor nivel: {best_level}",
             True,
             settings.TEXT_COLOR,
         )
+        difficulty_text = self.small_font.render(f"Dificultad actual: {difficulty_label}", True, settings.TEXT_COLOR)
 
         surface.blit(title, ((settings.SCREEN_WIDTH - title.get_width()) // 2, 170))
         surface.blit(subtitle, ((settings.SCREEN_WIDTH - subtitle.get_width()) // 2, 225))
         surface.blit(start_text, ((settings.SCREEN_WIDTH - start_text.get_width()) // 2, 305))
         surface.blit(save_info, ((settings.SCREEN_WIDTH - save_info.get_width()) // 2, 350))
-        surface.blit(controls, ((settings.SCREEN_WIDTH - controls.get_width()) // 2, 390))
+        surface.blit(difficulty_text, ((settings.SCREEN_WIDTH - difficulty_text.get_width()) // 2, 380))
+        surface.blit(controls, ((settings.SCREEN_WIDTH - controls.get_width()) // 2, 415))
 
     def draw_pause_overlay(self, surface: pygame.Surface) -> None:
         overlay = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -141,6 +143,51 @@ class UI:
         surface.blit(treasure_text, ((settings.SCREEN_WIDTH - treasure_text.get_width()) // 2, start_y + 175))
         surface.blit(level_text, ((settings.SCREEN_WIDTH - level_text.get_width()) // 2, start_y + 210))
         surface.blit(action_text, ((settings.SCREEN_WIDTH - action_text.get_width()) // 2, start_y + 280))
+
+    def draw_minimap(
+        self,
+        surface: pygame.Surface,
+        player_rect: pygame.Rect,
+        world_size: tuple[int, int],
+        zones: list,
+        enemies: list,
+        shop_zone: pygame.Rect,
+    ) -> None:
+        minimap_width = 200
+        minimap_height = 130
+        margin = 20
+        map_rect = pygame.Rect(settings.SCREEN_WIDTH - minimap_width - margin, margin, minimap_width, minimap_height)
+
+        pygame.draw.rect(surface, (18, 24, 31), map_rect, border_radius=10)
+        pygame.draw.rect(surface, (74, 94, 118), map_rect, 2, border_radius=10)
+
+        scale_x = minimap_width / world_size[0]
+        scale_y = minimap_height / world_size[1]
+
+        def scale_rect(rect: pygame.Rect) -> pygame.Rect:
+            return pygame.Rect(
+                map_rect.x + int(rect.x * scale_x),
+                map_rect.y + int(rect.y * scale_y),
+                max(2, int(rect.width * scale_x)),
+                max(2, int(rect.height * scale_y)),
+            )
+
+        for zone in zones:
+            zone_color = (74, 108, 132) if not zone.completed else (84, 160, 120)
+            pygame.draw.rect(surface, zone_color, scale_rect(zone.rect), 1)
+
+        pygame.draw.rect(surface, (86, 135, 225), scale_rect(shop_zone))
+
+        for enemy in enemies:
+            if enemy.alive:
+                enemy_dot = scale_rect(enemy.rect)
+                pygame.draw.rect(surface, (232, 114, 114), enemy_dot)
+
+        player_dot = scale_rect(player_rect)
+        pygame.draw.rect(surface, (92, 242, 156), player_dot)
+
+        label = self.small_font.render("Mapa", True, settings.TEXT_COLOR)
+        surface.blit(label, (map_rect.x + 8, map_rect.y + 6))
 
     def draw_center_message(self, surface: pygame.Surface, message: str) -> None:
         text = self.font.render(message, True, settings.TEXT_COLOR)
