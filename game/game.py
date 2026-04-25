@@ -7,7 +7,8 @@ import random
 import pygame
 
 from game import settings
-from game.entities import Player, Projectile
+from game.entities import Particle, Player, Projectile
+from game.persistence import GameSave, load_game_save, save_game_save
 from game.ui import UI
 from game.world import World
 
@@ -21,11 +22,14 @@ class Game:
         self.font = pygame.font.SysFont("consolas", 28)
 
         self.ui = UI(self.font)
+        self.save_data = load_game_save()
         self.reset()
 
     def reset(self) -> None:
         self.player = Player(60, 60, speed=settings.PLAYER_SPEED)
+        self._apply_save_data_to_player()
         self.projectiles: list[Projectile] = []
+        self.particles: list[Particle] = []
         self.world = World()
         self.score = 0
         self.attack_cooldown = 0.0
@@ -45,6 +49,14 @@ class Game:
             "play_time": 0.0,
         }
         self._accumulated_time = 0.0
+        self._session_saved = False
+
+    def _apply_save_data_to_player(self) -> None:
+        for weapon_key in self.save_data.unlocked_weapons:
+            self.player.unlock_weapon(weapon_key)
+
+        if self.player.has_weapon(self.save_data.active_weapon):
+            self.player.set_active_weapon(self.save_data.active_weapon)
 
     def run(self) -> None:
         running = True
@@ -138,6 +150,7 @@ class Game:
             enemy.update(dt, self.player.rect, self.world.walls)
 
         self._update_projectiles(dt)
+        self._update_particles(dt)
         self._check_treasure_collisions()
         self._check_trap_collisions()
         self._check_enemy_collisions()
@@ -159,6 +172,15 @@ class Game:
                 damage=weapon.damage + self.player.stats.attack // 2,
             )
         )
+        self._spawn_burst(
+            x=self.player.rect.centerx + int(self.player.facing.x * 12),
+            y=self.player.rect.centery + int(self.player.facing.y * 12),
+            color=weapon.color,
+            count=5,
+            speed_range=(40, 110),
+            life_range=(0.12, 0.25),
+            radius_range=(2, 3),
+        )
 
     def _update_projectiles(self, dt: float) -> None:
         for projectile in self.projectiles[:]:
@@ -170,12 +192,38 @@ class Game:
 
             enemy_hit = self._find_enemy_hit_by_projectile(projectile)
             if enemy_hit is not None:
+                impact_x = projectile.rect.centerx
+                impact_y = projectile.rect.centery
                 enemy_hit.take_damage(projectile.damage)
+                self._spawn_burst(
+                    x=impact_x,
+                    y=impact_y,
+                    color=settings.PARTICLE_HIT_COLOR,
+                    count=8,
+                    speed_range=(50, 160),
+                    life_range=(0.15, 0.35),
+                    radius_range=(2, 4),
+                )
                 if not enemy_hit.alive:
                     self.player.gold += 8
                     self._grant_xp(14)
                     self._on_enemy_defeated(enemy_hit)
+                    self._spawn_burst(
+                        x=enemy_hit.rect.centerx,
+                        y=enemy_hit.rect.centery,
+                        color=settings.PARTICLE_ZONE_COLOR,
+                        count=14,
+                        speed_range=(60, 190),
+                        life_range=(0.2, 0.45),
+                        radius_range=(2, 4),
+                    )
                 self.projectiles.remove(projectile)
+
+    def _update_particles(self, dt: float) -> None:
+        for particle in self.particles[:]:
+            particle.update(dt)
+            if not particle.is_alive():
+                self.particles.remove(particle)
 
     def _projectile_hits_wall(self, projectile: Projectile) -> bool:
         return any(projectile.rect.colliderect(wall) for wall in self.world.walls)
@@ -194,6 +242,15 @@ class Game:
             self.player.gold -= 15
             self.player.hp = min(self.player.stats.max_hp, self.player.hp + 20)
             self.message = "Compraste una curacion"
+            self._spawn_burst(
+                x=self.player.rect.centerx,
+                y=self.player.rect.centery,
+                color=settings.PARTICLE_PICKUP_COLOR,
+                count=8,
+                speed_range=(30, 120),
+                life_range=(0.18, 0.4),
+                radius_range=(2, 4),
+            )
         elif self.player.rect.colliderect(self.world.shop_zone):
             self.message = "No tienes oro suficiente"
 
@@ -205,6 +262,15 @@ class Game:
                 self._grant_xp(10)
                 self.score += treasure.value
                 self.frame_stats["treasures_collected"] += 1
+                self._spawn_burst(
+                    x=treasure.rect.centerx,
+                    y=treasure.rect.centery,
+                    color=settings.PARTICLE_PICKUP_COLOR,
+                    count=10,
+                    speed_range=(40, 140),
+                    life_range=(0.18, 0.45),
+                    radius_range=(2, 4),
+                )
 
     def _check_objective_zones(self) -> None:
         if self.active_zone_index >= len(self.world.objective_zones):
@@ -230,6 +296,15 @@ class Game:
             self._grant_xp(12)
             self.message = f"Zona completada: {active_zone.name}"
             self.active_zone_index += 1
+            self._spawn_burst(
+                x=active_zone.rect.centerx,
+                y=active_zone.rect.centery,
+                color=settings.PARTICLE_ZONE_COLOR,
+                count=16,
+                speed_range=(50, 170),
+                life_range=(0.22, 0.5),
+                radius_range=(2, 5),
+            )
 
             if self.active_zone_index < len(self.world.objective_zones):
                 self.level_up_options = self.level_up_options
@@ -240,6 +315,15 @@ class Game:
                 trap.triggered = True
                 self.player.take_damage(trap.damage)
                 self.message = "Piso una trampa"
+                self._spawn_burst(
+                    x=trap.rect.centerx,
+                    y=trap.rect.centery,
+                    color=settings.PARTICLE_DAMAGE_COLOR,
+                    count=10,
+                    speed_range=(60, 180),
+                    life_range=(0.15, 0.35),
+                    radius_range=(2, 4),
+                )
 
     def _check_enemy_collisions(self) -> None:
         if self.contact_damage_timer > 0:
@@ -263,6 +347,15 @@ class Game:
                 )
                 self.contact_damage_timer = settings.CONTACT_INVULN_TIME
                 self.message = "Recibiste dano"
+                self._spawn_burst(
+                    x=self.player.rect.centerx,
+                    y=self.player.rect.centery,
+                    color=settings.PARTICLE_DAMAGE_COLOR,
+                    count=12,
+                    speed_range=(70, 210),
+                    life_range=(0.16, 0.38),
+                    radius_range=(2, 4),
+                )
                 break
 
     def _check_game_state(self) -> None:
@@ -270,6 +363,7 @@ class Game:
             self.game_over = True
             self.game_state = "game_over"
             self.message = "Derrota. Presiona R para reiniciar"
+            self._finalize_session(victory=False)
             return
 
         all_treasures_collected = all(t.collected for t in self.world.treasures)
@@ -280,6 +374,7 @@ class Game:
             self.victory = True
             self.game_state = "victory"
             self.message = "Victoria. Presiona R para jugar otra vez"
+            self._finalize_session(victory=True)
 
     def _draw(self) -> None:
         self.screen.fill(settings.BACKGROUND_COLOR)
@@ -306,11 +401,29 @@ class Game:
         for projectile in self.projectiles:
             pygame.draw.rect(self.screen, projectile.color, projectile.rect)
 
+        for particle in self.particles:
+            alpha_surface = pygame.Surface((particle.radius * 4, particle.radius * 4), pygame.SRCALPHA)
+            pygame.draw.circle(
+                alpha_surface,
+                (*particle.color, max(20, int(255 * min(1.0, particle.life / 0.45)))),
+                (particle.radius * 2, particle.radius * 2),
+                particle.radius,
+            )
+            self.screen.blit(
+                alpha_surface,
+                (int(particle.position.x) - particle.radius * 2, int(particle.position.y) - particle.radius * 2),
+            )
+
         if self._should_draw_player():
             pygame.draw.rect(self.screen, settings.PLAYER_COLOR, self.player.rect)
 
         if self.game_state == "title":
-            self.ui.draw_title_screen(self.screen)
+            self.ui.draw_title_screen(
+                self.screen,
+                best_score=self.save_data.best_score,
+                total_runs=self.save_data.total_runs,
+                best_level=self.save_data.best_level,
+            )
         else:
             self.ui.draw_hud(
                 self.screen,
@@ -469,6 +582,48 @@ class Game:
             self.score += 40
         else:
             self.score += 25
+
+    def _finalize_session(self, victory: bool) -> None:
+        if self._session_saved:
+            return
+
+        self._session_saved = True
+        self.save_data.total_runs += 1
+        self.save_data.total_enemies_defeated += self.frame_stats["enemies_defeated"]
+        self.save_data.total_treasures_collected += self.frame_stats["treasures_collected"]
+        self.save_data.total_damage_taken += self.frame_stats["damage_taken"]
+        self.save_data.best_score = max(self.save_data.best_score, self.score)
+        self.save_data.best_level = max(self.save_data.best_level, self.player.level)
+        self.save_data.active_weapon = self.player.active_weapon_key
+        self.save_data.unlocked_weapons = sorted(self.player.unlocked_weapons)
+        save_game_save(self.save_data)
+
+    def _spawn_burst(
+        self,
+        x: int,
+        y: int,
+        color: tuple[int, int, int],
+        count: int,
+        speed_range: tuple[int, int],
+        life_range: tuple[float, float],
+        radius_range: tuple[int, int],
+    ) -> None:
+        for _ in range(count):
+            angle = random.uniform(0, 360)
+            speed = random.uniform(speed_range[0], speed_range[1])
+            direction = pygame.Vector2(1, 0).rotate(angle)
+            velocity = direction * speed
+            life = random.uniform(life_range[0], life_range[1])
+            radius = random.randint(radius_range[0], radius_range[1])
+            self.particles.append(
+                Particle(
+                    position=pygame.Vector2(float(x), float(y)),
+                    velocity=velocity,
+                    life=life,
+                    color=color,
+                    radius=radius,
+                )
+            )
 
     def _set_weapon_by_index(self, index: int) -> None:
         weapon_keys = self._weapon_keys()
