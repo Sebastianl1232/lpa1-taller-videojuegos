@@ -36,3 +36,33 @@ ENEMY_HP_COLOR = (112, 224, 112)
 TEXT_COLOR = (240, 244, 248)
 
 OBJECTIVE_SCORE = 150
+
+DIFFICULTY_PROFILES = {
+	"easy": {
+		"label": "Facil",
+		"enemy_hp_multiplier": 0.8,
+		"enemy_attack_multiplier": 0.8,
+		"enemy_speed_multiplier": 0.9,
+		"treasure_multiplier": 1.2,
+		"trap_multiplier": 0.8,
+		"objective_score": 130,
+	},
+	"normal": {
+		"label": "Normal",
+		"enemy_hp_multiplier": 1.0,
+		"enemy_attack_multiplier": 1.0,
+		"enemy_speed_multiplier": 1.0,
+		"treasure_multiplier": 1.0,
+		"trap_multiplier": 1.0,
+		"objective_score": 150,
+	},
+	"hard": {
+		"label": "Dificil",
+		"enemy_hp_multiplier": 1.25,
+		"enemy_attack_multiplier": 1.2,
+		"enemy_speed_multiplier": 1.1,
+		"treasure_multiplier": 0.9,
+		"trap_multiplier": 1.2,
+		"objective_score": 180,
+	},
+}
