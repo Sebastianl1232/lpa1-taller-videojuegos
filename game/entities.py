@@ -28,6 +28,22 @@ class WeaponProfile:
     color: tuple[int, int, int]
 
 
+@dataclass
+class Particle:
+    position: pygame.Vector2
+    velocity: pygame.Vector2
+    life: float
+    color: tuple[int, int, int]
+    radius: int
+
+    def update(self, dt: float) -> None:
+        self.position += self.velocity * dt
+        self.life -= dt
+
+    def is_alive(self) -> bool:
+        return self.life > 0
+
+
 class Player:
     def __init__(self, x: int, y: int, speed: int) -> None:
         self.rect = pygame.Rect(x, y, 34, 34)
