@@ -73,7 +73,7 @@ class Game:
         self.player.move(direction, dt, self.world.walls)
 
         for enemy in self.world.enemies:
-            enemy.update(dt)
+            enemy.update(dt, self.player.rect, self.world.walls)
 
         self._update_projectiles(dt)
         self._check_treasure_collisions()
@@ -178,8 +178,9 @@ class Game:
 
         all_treasures_collected = all(t.collected for t in self.world.treasures)
         all_enemies_defeated = all(not e.alive for e in self.world.enemies)
+        miniboss_defeated = any(e.enemy_type == "mini_jefe" and not e.alive for e in self.world.enemies)
 
-        if self.score >= settings.OBJECTIVE_SCORE or (all_treasures_collected and all_enemies_defeated):
+        if (self.score >= settings.OBJECTIVE_SCORE and miniboss_defeated) or (all_treasures_collected and all_enemies_defeated):
             self.victory = True
             self.message = "Victoria. Presiona R para jugar otra vez"
 
@@ -201,7 +202,8 @@ class Game:
 
         for enemy in self.world.enemies:
             if enemy.alive:
-                pygame.draw.rect(self.screen, settings.ENEMY_COLOR, enemy.rect)
+                color = settings.BOSS_COLOR if enemy.enemy_type == "mini_jefe" else settings.ENEMY_COLOR
+                pygame.draw.rect(self.screen, color, enemy.rect)
                 self._draw_enemy_health_bar(enemy)
 
         for projectile in self.projectiles:
