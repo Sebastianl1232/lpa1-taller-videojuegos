@@ -35,6 +35,14 @@ class Game:
         self.message = ""
         self.game_over = False
         self.victory = False
+        self.game_state = "title"
+        self.frame_stats = {
+            "enemies_defeated": 0,
+            "treasures_collected": 0,
+            "damage_taken": 0,
+            "play_time": 0.0,
+        }
+        self._accumulated_time = 0.0
 
     def run(self) -> None:
         running = True
@@ -42,7 +50,7 @@ class Game:
             dt = self.clock.tick(settings.FPS) / 1000.0
             running = self._handle_events()
 
-            if not self.game_over and not self.victory:
+            if self.game_state == "playing" or self._level_up_menu_open():
                 self._update(dt)
 
             self._draw()
@@ -54,6 +62,32 @@ class Game:
             if event.type == pygame.QUIT:
                 return False
             if event.type == pygame.KEYDOWN:
+                if self.game_state == "title":
+                    if event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                        self.game_state = "playing"
+                    if event.key == pygame.K_ESCAPE:
+                        return False
+                    continue
+
+                if self.game_state == "paused":
+                    if event.key == pygame.K_p:
+                        self.game_state = "playing"
+                    if event.key == pygame.K_r:
+                        self.reset()
+                    if event.key == pygame.K_ESCAPE:
+                        return False
+                    continue
+
+                if self.game_state in ("game_over", "victory"):
+                    if event.key == pygame.K_r:
+                        self.reset()
+                    if event.key == pygame.K_RETURN:
+                        self.reset()
+                        self.game_state = "playing"
+                    if event.key == pygame.K_ESCAPE:
+                        return False
+                    continue
+
                 if self._level_up_menu_open():
                     if event.key in (pygame.K_1, pygame.K_KP1):
                         self._apply_upgrade_choice(0)
@@ -71,14 +105,18 @@ class Game:
                     self._set_weapon_by_index(1)
                 if event.key in (pygame.K_3, pygame.K_KP3):
                     self._set_weapon_by_index(2)
+                if event.key == pygame.K_p and self.game_state == "playing":
+                    self.game_state = "paused"
                 if event.key == pygame.K_e and not self.game_over and not self.victory:
                     self._try_shop_heal()
-                if event.key == pygame.K_r and (self.game_over or self.victory):
-                    self.reset()
 
         return True
 
     def _update(self, dt: float) -> None:
+        if self.game_state != "playing" and not self._level_up_menu_open():
+            return
+
+        self._accumulated_time += dt
         self.attack_cooldown = max(0.0, self.attack_cooldown - dt)
         self.contact_damage_timer = max(0.0, self.contact_damage_timer - dt)
 
@@ -133,7 +171,7 @@ class Game:
                 if not enemy_hit.alive:
                     self.player.gold += 8
                     self._grant_xp(14)
-                    self.score += 25
+                    self._on_enemy_defeated(enemy_hit)
                 self.projectiles.remove(projectile)
 
     def _projectile_hits_wall(self, projectile: Projectile) -> bool:
@@ -163,6 +201,7 @@ class Game:
                 self.player.gold += treasure.value
                 self._grant_xp(10)
                 self.score += treasure.value
+                self.frame_stats["treasures_collected"] += 1
 
     def _check_trap_collisions(self) -> None:
         for trap in self.world.traps:
@@ -178,6 +217,7 @@ class Game:
         for enemy in self.world.enemies:
             if enemy.alive and self.player.rect.colliderect(enemy.rect):
                 self.player.take_damage(enemy.stats.attack)
+                self.frame_stats["damage_taken"] += 1
                 knockback_direction = pygame.Vector2(
                     self.player.rect.centerx - enemy.rect.centerx,
                     self.player.rect.centery - enemy.rect.centery,
@@ -197,6 +237,7 @@ class Game:
     def _check_game_state(self) -> None:
         if self.player.hp <= 0:
             self.game_over = True
+            self.game_state = "game_over"
             self.message = "Derrota. Presiona R para reiniciar"
             return
 
@@ -206,6 +247,7 @@ class Game:
 
         if (self.score >= settings.OBJECTIVE_SCORE and miniboss_defeated) or (all_treasures_collected and all_enemies_defeated):
             self.victory = True
+            self.game_state = "victory"
             self.message = "Victoria. Presiona R para jugar otra vez"
 
     def _draw(self) -> None:
@@ -236,31 +278,45 @@ class Game:
         if self._should_draw_player():
             pygame.draw.rect(self.screen, settings.PLAYER_COLOR, self.player.rect)
 
-        self.ui.draw_hud(
-            self.screen,
-            hp=self.player.hp,
-            max_hp=self.player.stats.max_hp,
-            level=self.player.level,
-            xp=self.player.xp,
-            gold=self.player.gold,
-            score=self.score,
-            active_weapon=self.player.get_active_weapon().name,
-            unlocked_weapons=[self.player.weapons[key].name for key in self._weapon_keys() if self.player.has_weapon(key)],
-        )
-
-        if self._level_up_menu_open():
-            self.ui.draw_level_up_menu(
+        if self.game_state == "title":
+            self.ui.draw_title_screen(self.screen)
+        else:
+            self.ui.draw_hud(
                 self.screen,
-                options=self.level_up_options,
-                pending_levels=self.pending_level_ups,
+                hp=self.player.hp,
+                max_hp=self.player.stats.max_hp,
+                level=self.player.level,
+                xp=self.player.xp,
+                gold=self.player.gold,
+                score=self.score,
+                active_weapon=self.player.get_active_weapon().name,
+                unlocked_weapons=[self.player.weapons[key].name for key in self._weapon_keys() if self.player.has_weapon(key)],
             )
 
-        if self.message:
-            message_text = self.font.render(self.message, True, settings.TEXT_COLOR)
-            self.screen.blit(message_text, (24, 146))
+            if self._level_up_menu_open():
+                self.ui.draw_level_up_menu(
+                    self.screen,
+                    options=self.level_up_options,
+                    pending_levels=self.pending_level_ups,
+                )
 
-        if self.game_over or self.victory:
-            self.ui.draw_center_message(self.screen, self.message)
+            if self.game_state == "paused":
+                self.ui.draw_pause_overlay(self.screen)
+
+            if self.game_state in ("game_over", "victory"):
+                self.ui.draw_end_screen(
+                    self.screen,
+                    victory=self.game_state == "victory",
+                    score=self.score,
+                    play_time=self._accumulated_time,
+                    enemies_defeated=sum(1 for enemy in self.world.enemies if not enemy.alive),
+                    treasures_collected=sum(1 for treasure in self.world.treasures if treasure.collected),
+                    level=self.player.level,
+                )
+
+            if self.message and self.game_state == "playing":
+                message_text = self.font.render(self.message, True, settings.TEXT_COLOR)
+                self.screen.blit(message_text, (24, 146))
 
         pygame.display.flip()
 
@@ -373,6 +429,13 @@ class Game:
             self.level_up_options = self._build_level_up_options()
         else:
             self.level_up_options = []
+
+    def _on_enemy_defeated(self, enemy) -> None:
+        self.frame_stats["enemies_defeated"] += 1
+        if enemy.enemy_type == "mini_jefe":
+            self.score += 40
+        else:
+            self.score += 25
 
     def _set_weapon_by_index(self, index: int) -> None:
         weapon_keys = self._weapon_keys()
