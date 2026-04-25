@@ -73,6 +73,63 @@ class UI:
             surface.blit(title_text, (x + 14, y + 52))
             surface.blit(desc_text, (x + 14, y + 88))
 
+    def draw_title_screen(self, surface: pygame.Surface) -> None:
+        overlay = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
+        overlay.fill((17, 21, 28))
+        surface.blit(overlay, (0, 0))
+
+        title = self.font.render("Aventura 2D", True, settings.TEXT_COLOR)
+        subtitle = self.small_font.render("Explora, dispara, sube de nivel y vence al mini-jefe", True, settings.TEXT_COLOR)
+        start_text = self.small_font.render("Enter o Espacio para empezar", True, settings.TEXT_COLOR)
+        controls = self.small_font.render("WASD/Flechas: moverse | Espacio: disparar | P: pausa | 1-3: armas", True, settings.TEXT_COLOR)
+
+        surface.blit(title, ((settings.SCREEN_WIDTH - title.get_width()) // 2, 170))
+        surface.blit(subtitle, ((settings.SCREEN_WIDTH - subtitle.get_width()) // 2, 225))
+        surface.blit(start_text, ((settings.SCREEN_WIDTH - start_text.get_width()) // 2, 305))
+        surface.blit(controls, ((settings.SCREEN_WIDTH - controls.get_width()) // 2, 365))
+
+    def draw_pause_overlay(self, surface: pygame.Surface) -> None:
+        overlay = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 140))
+        surface.blit(overlay, (0, 0))
+
+        title = self.font.render("Pausa", True, settings.TEXT_COLOR)
+        hint = self.small_font.render("P para continuar | R para reiniciar | Esc para salir", True, settings.TEXT_COLOR)
+        surface.blit(title, ((settings.SCREEN_WIDTH - title.get_width()) // 2, 260))
+        surface.blit(hint, ((settings.SCREEN_WIDTH - hint.get_width()) // 2, 310))
+
+    def draw_end_screen(
+        self,
+        surface: pygame.Surface,
+        victory: bool,
+        score: int,
+        play_time: float,
+        enemies_defeated: int,
+        treasures_collected: int,
+        level: int,
+    ) -> None:
+        overlay = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 190))
+        surface.blit(overlay, (0, 0))
+
+        headline = "Victoria" if victory else "Derrota"
+        title = self.font.render(headline, True, settings.TEXT_COLOR)
+        score_text = self.small_font.render(f"Puntaje final: {score}", True, settings.TEXT_COLOR)
+        time_text = self.small_font.render(f"Tiempo jugado: {play_time:.1f} s", True, settings.TEXT_COLOR)
+        enemy_text = self.small_font.render(f"Enemigos derrotados: {enemies_defeated}", True, settings.TEXT_COLOR)
+        treasure_text = self.small_font.render(f"Tesoros recogidos: {treasures_collected}", True, settings.TEXT_COLOR)
+        level_text = self.small_font.render(f"Nivel alcanzado: {level}", True, settings.TEXT_COLOR)
+        action_text = self.small_font.render("R para reiniciar | Enter para volver a jugar | Esc para salir", True, settings.TEXT_COLOR)
+
+        start_y = 160
+        surface.blit(title, ((settings.SCREEN_WIDTH - title.get_width()) // 2, start_y))
+        surface.blit(score_text, ((settings.SCREEN_WIDTH - score_text.get_width()) // 2, start_y + 70))
+        surface.blit(time_text, ((settings.SCREEN_WIDTH - time_text.get_width()) // 2, start_y + 105))
+        surface.blit(enemy_text, ((settings.SCREEN_WIDTH - enemy_text.get_width()) // 2, start_y + 140))
+        surface.blit(treasure_text, ((settings.SCREEN_WIDTH - treasure_text.get_width()) // 2, start_y + 175))
+        surface.blit(level_text, ((settings.SCREEN_WIDTH - level_text.get_width()) // 2, start_y + 210))
+        surface.blit(action_text, ((settings.SCREEN_WIDTH - action_text.get_width()) // 2, start_y + 280))
+
     def draw_center_message(self, surface: pygame.Surface, message: str) -> None:
         text = self.font.render(message, True, settings.TEXT_COLOR)
         shadow = self.font.render(message, True, (0, 0, 0))
