@@ -1,0 +1,12 @@
+{
+  "best_score": 280,
+  "best_level": 3,
+  "total_runs": 1,
+  "total_enemies_defeated": 5,
+  "total_treasures_collected": 3,
+  "total_damage_taken": 3,
+  "unlocked_weapons": [
+    "basic"
+  ],
+  "active_weapon": "basic"
+}
