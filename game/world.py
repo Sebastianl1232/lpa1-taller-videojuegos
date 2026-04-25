@@ -23,12 +23,20 @@ class ExplosiveTrap:
     triggered: bool = False
 
 
+@dataclass
+class ObjectiveZone:
+    name: str
+    rect: pygame.Rect
+    completed: bool = False
+
+
 class World:
     def __init__(self) -> None:
         self.walls = self._build_walls()
         self.enemies = self._spawn_enemies()
         self.treasures = self._spawn_treasures()
         self.traps = self._spawn_traps()
+        self.objective_zones = self._spawn_objective_zones()
         self.shop_zone = pygame.Rect(780, 520, 130, 90)
 
     def _build_walls(self) -> list[pygame.Rect]:
@@ -66,4 +74,11 @@ class World:
             ExplosiveTrap(pygame.Rect(280, 200, 24, 24), damage=10),
             ExplosiveTrap(pygame.Rect(560, 430, 24, 24), damage=14),
             ExplosiveTrap(pygame.Rect(820, 300, 24, 24), damage=12),
+        ]
+
+    def _spawn_objective_zones(self) -> list[ObjectiveZone]:
+        return [
+            ObjectiveZone("Sector Norte", pygame.Rect(40, 40, 320, 200)),
+            ObjectiveZone("Ruinas Centrales", pygame.Rect(380, 170, 250, 260)),
+            ObjectiveZone("Santuario Sur", pygame.Rect(640, 430, 260, 170)),
         ]
