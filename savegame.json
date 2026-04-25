@@ -1,10 +1,10 @@
 {
   "best_score": 280,
   "best_level": 3,
-  "total_runs": 2,
-  "total_enemies_defeated": 10,
-  "total_treasures_collected": 6,
-  "total_damage_taken": 10,
+  "total_runs": 3,
+  "total_enemies_defeated": 15,
+  "total_treasures_collected": 8,
+  "total_damage_taken": 12,
   "unlocked_weapons": [
     "basic",
     "rapid"
