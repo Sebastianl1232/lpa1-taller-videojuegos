@@ -23,18 +23,24 @@ class UI:
         score: int,
         active_weapon: str,
         unlocked_weapons: list[str],
+        zone_name: str,
+        zone_progress: str,
     ) -> None:
         hp_text = self.font.render(f"HP: {hp}/{max_hp}", True, settings.TEXT_COLOR)
         level_text = self.font.render(f"Nivel: {level}  XP: {xp}", True, settings.TEXT_COLOR)
         gold_text = self.font.render(f"Oro: {gold}", True, settings.TEXT_COLOR)
         score_text = self.font.render(f"Puntaje: {score}/{settings.OBJECTIVE_SCORE}", True, settings.TEXT_COLOR)
         weapon_text = self.font.render(f"Arma: {active_weapon}", True, settings.TEXT_COLOR)
+        zone_text = self.small_font.render(f"Objetivo: {zone_name}", True, settings.TEXT_COLOR)
+        progress_text = self.small_font.render(zone_progress, True, settings.TEXT_COLOR)
 
         surface.blit(hp_text, (24, 20))
         surface.blit(level_text, (24, 50))
         surface.blit(gold_text, (24, 80))
         surface.blit(score_text, (24, 110))
         surface.blit(weapon_text, (24, 140))
+        surface.blit(zone_text, (24, 180))
+        surface.blit(progress_text, (24, 205))
 
         weapon_hint = self.small_font.render("1-3 cambian arma | Espacio: disparar | E: tienda", True, settings.TEXT_COLOR)
         unlocked_text = self.small_font.render(f"Desbloqueadas: {', '.join(unlocked_weapons)}", True, settings.TEXT_COLOR)
