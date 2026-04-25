@@ -7,6 +7,7 @@ import random
 import pygame
 
 from game import settings
+from game.audio import AudioManager
 from game.entities import Particle, Player, Projectile
 from game.persistence import GameSave, load_game_save, save_game_save
 from game.ui import UI
@@ -22,6 +23,7 @@ class Game:
         self.font = pygame.font.SysFont("consolas", 28)
 
         self.ui = UI(self.font)
+        self.audio = AudioManager()
         self.save_data = load_game_save()
         self.reset()
 
@@ -172,6 +174,7 @@ class Game:
                 damage=weapon.damage + self.player.stats.attack // 2,
             )
         )
+        self.audio.play("shoot")
         self._spawn_burst(
             x=self.player.rect.centerx + int(self.player.facing.x * 12),
             y=self.player.rect.centery + int(self.player.facing.y * 12),
@@ -195,6 +198,7 @@ class Game:
                 impact_x = projectile.rect.centerx
                 impact_y = projectile.rect.centery
                 enemy_hit.take_damage(projectile.damage)
+                self.audio.play("hit")
                 self._spawn_burst(
                     x=impact_x,
                     y=impact_y,
@@ -242,6 +246,7 @@ class Game:
             self.player.gold -= 15
             self.player.hp = min(self.player.stats.max_hp, self.player.hp + 20)
             self.message = "Compraste una curacion"
+            self.audio.play("pickup")
             self._spawn_burst(
                 x=self.player.rect.centerx,
                 y=self.player.rect.centery,
@@ -262,6 +267,7 @@ class Game:
                 self._grant_xp(10)
                 self.score += treasure.value
                 self.frame_stats["treasures_collected"] += 1
+                self.audio.play("pickup")
                 self._spawn_burst(
                     x=treasure.rect.centerx,
                     y=treasure.rect.centery,
@@ -296,6 +302,7 @@ class Game:
             self._grant_xp(12)
             self.message = f"Zona completada: {active_zone.name}"
             self.active_zone_index += 1
+            self.audio.play("pickup")
             self._spawn_burst(
                 x=active_zone.rect.centerx,
                 y=active_zone.rect.centery,
@@ -315,6 +322,7 @@ class Game:
                 trap.triggered = True
                 self.player.take_damage(trap.damage)
                 self.message = "Piso una trampa"
+                self.audio.play("damage")
                 self._spawn_burst(
                     x=trap.rect.centerx,
                     y=trap.rect.centery,
@@ -333,6 +341,7 @@ class Game:
             if enemy.alive and self.player.rect.colliderect(enemy.rect):
                 self.player.take_damage(enemy.stats.attack)
                 self.frame_stats["damage_taken"] += 1
+                self.audio.play("damage")
                 knockback_direction = pygame.Vector2(
                     self.player.rect.centerx - enemy.rect.centerx,
                     self.player.rect.centery - enemy.rect.centery,
@@ -375,6 +384,7 @@ class Game:
             self.game_state = "victory"
             self.message = "Victoria. Presiona R para jugar otra vez"
             self._finalize_session(victory=True)
+            self.audio.play("victory")
 
     def _draw(self) -> None:
         self.screen.fill(settings.BACKGROUND_COLOR)
@@ -499,6 +509,7 @@ class Game:
             self.pending_level_ups += levels_gained
             if not self.level_up_options:
                 self.level_up_options = self._build_level_up_options()
+            self.audio.play("levelup")
 
     def _level_up_menu_open(self) -> bool:
         return self.pending_level_ups > 0 and len(self.level_up_options) > 0
