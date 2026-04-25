@@ -17,6 +17,17 @@ class Stats:
     defense: int
 
 
+@dataclass(frozen=True)
+class WeaponProfile:
+    key: str
+    name: str
+    damage: int
+    cooldown: float
+    speed: int
+    projectile_size: int
+    color: tuple[int, int, int]
+
+
 class Player:
     def __init__(self, x: int, y: int, speed: int) -> None:
         self.rect = pygame.Rect(x, y, 34, 34)
@@ -27,6 +38,37 @@ class Player:
         self.level = 1
         self.xp = 0
         self.gold = 0
+        self.weapons = {
+            "basic": WeaponProfile(
+                key="basic",
+                name="Blaster",
+                damage=8,
+                cooldown=0.24,
+                speed=420,
+                projectile_size=10,
+                color=(153, 229, 255),
+            ),
+            "rapid": WeaponProfile(
+                key="rapid",
+                name="Rafaga",
+                damage=6,
+                cooldown=0.11,
+                speed=520,
+                projectile_size=8,
+                color=(120, 255, 200),
+            ),
+            "heavy": WeaponProfile(
+                key="heavy",
+                name="Canon",
+                damage=18,
+                cooldown=0.5,
+                speed=320,
+                projectile_size=16,
+                color=(255, 176, 96),
+            ),
+        }
+        self.unlocked_weapons = {"basic"}
+        self.active_weapon_key = "basic"
 
     def move(self, direction: pygame.Vector2, dt: float, walls: list[pygame.Rect]) -> None:
         if direction.length_squared() > 0:
@@ -68,23 +110,56 @@ class Player:
         self.rect.y += int(force.y)
         self._resolve_collisions(walls, axis="y")
 
-    def gain_xp(self, amount: int) -> None:
+    def gain_xp(self, amount: int) -> int:
         self.xp += amount
+        levels_gained = 0
         while self.xp >= self.level * 30:
             self.xp -= self.level * 30
             self.level += 1
-            self.stats.max_hp += 8
-            self.stats.attack += 2
-            self.stats.defense += 1
-            self.hp = min(self.stats.max_hp, self.hp + 12)
+            levels_gained += 1
+
+        return levels_gained
+
+    def boost_max_hp(self, amount: int, heal_amount: int | None = None) -> None:
+        self.stats.max_hp += amount
+        self.hp = min(self.stats.max_hp, self.hp + (heal_amount if heal_amount is not None else amount))
+
+    def boost_attack(self, amount: int) -> None:
+        self.stats.attack += amount
+
+    def boost_defense(self, amount: int) -> None:
+        self.stats.defense += amount
+
+    def unlock_weapon(self, weapon_key: str) -> bool:
+        if weapon_key not in self.weapons:
+            return False
+
+        self.unlocked_weapons.add(weapon_key)
+        return True
+
+    def has_weapon(self, weapon_key: str) -> bool:
+        return weapon_key in self.unlocked_weapons
+
+    def set_active_weapon(self, weapon_key: str) -> bool:
+        if weapon_key not in self.unlocked_weapons:
+            return False
+
+        self.active_weapon_key = weapon_key
+        return True
+
+    def get_active_weapon(self) -> WeaponProfile:
+        return self.weapons[self.active_weapon_key]
 
 
 class Projectile:
-    def __init__(self, x: int, y: int, direction: pygame.Vector2, speed: int) -> None:
-        self.rect = pygame.Rect(x - 5, y - 5, 10, 10)
+    def __init__(self, x: int, y: int, direction: pygame.Vector2, weapon: WeaponProfile, damage: int) -> None:
+        size = weapon.projectile_size
+        self.rect = pygame.Rect(x - size // 2, y - size // 2, size, size)
         self.position = pygame.Vector2(float(self.rect.x), float(self.rect.y))
         self.direction = direction.normalize() if direction.length_squared() > 0 else pygame.Vector2(1, 0)
-        self.speed = speed
+        self.speed = weapon.speed
+        self.color = weapon.color
+        self.damage = damage
 
     def update(self, dt: float) -> None:
         self.position += self.direction * self.speed * dt
