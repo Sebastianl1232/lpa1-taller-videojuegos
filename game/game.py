@@ -46,6 +46,8 @@ class Game:
         self.active_zone_index = 0
         self.zone_completion_bonus = 20
         self.objective_score = settings.DIFFICULTY_PROFILES[self.difficulty]["objective_score"]
+        self.active_zone_event = {}
+        self.side_quest = {}
         self.frame_stats = {
             "enemies_defeated": 0,
             "treasures_collected": 0,
@@ -54,6 +56,8 @@ class Game:
         }
         self._accumulated_time = 0.0
         self._session_saved = False
+        self._roll_zone_event(first_event=True)
+        self._generate_side_quest()
 
     def _apply_save_data_to_player(self) -> None:
         for weapon_key in self.save_data.unlocked_weapons:
@@ -174,13 +178,14 @@ class Game:
 
         weapon = self.player.get_active_weapon()
         self.attack_cooldown = weapon.cooldown
+        damage_bonus = self.active_zone_event.get("player_damage_bonus", 0)
         self.projectiles.append(
             Projectile(
                 x=self.player.rect.centerx,
                 y=self.player.rect.centery,
                 direction=self.player.facing,
                 weapon=weapon,
-                damage=weapon.damage + self.player.stats.attack // 2,
+                damage=weapon.damage + self.player.stats.attack // 2 + damage_bonus,
             )
         )
         self.audio.play("shoot")
@@ -272,9 +277,11 @@ class Game:
         for treasure in self.world.treasures:
             if not treasure.collected and self.player.rect.colliderect(treasure.rect):
                 treasure.collected = True
-                self.player.gold += treasure.value
+                treasure_multiplier = self.active_zone_event.get("treasure_multiplier", 1.0)
+                treasure_value = max(1, int(treasure.value * treasure_multiplier))
+                self.player.gold += treasure_value
                 self._grant_xp(10)
-                self.score += treasure.value
+                self.score += treasure_value
                 self.frame_stats["treasures_collected"] += 1
                 self.audio.play("pickup")
                 self._spawn_burst(
@@ -286,6 +293,7 @@ class Game:
                     life_range=(0.18, 0.45),
                     radius_range=(2, 4),
                 )
+                self._advance_side_quest("treasure")
 
     def _check_objective_zones(self) -> None:
         if self.active_zone_index >= len(self.world.objective_zones):
@@ -321,6 +329,8 @@ class Game:
                 life_range=(0.22, 0.5),
                 radius_range=(2, 5),
             )
+            self._advance_side_quest("zone")
+            self._roll_zone_event()
 
             if self.active_zone_index < len(self.world.objective_zones):
                 self.level_up_options = self.level_up_options
@@ -348,7 +358,8 @@ class Game:
 
         for enemy in self.world.enemies:
             if enemy.alive and self.player.rect.colliderect(enemy.rect):
-                self.player.take_damage(enemy.stats.attack)
+                attack_multiplier = self.active_zone_event.get("enemy_attack_multiplier", 1.0)
+                self.player.take_damage(max(1, int(enemy.stats.attack * attack_multiplier)))
                 self.frame_stats["damage_taken"] += 1
                 self.audio.play("damage")
                 knockback_direction = pygame.Vector2(
@@ -465,6 +476,9 @@ class Game:
                 unlocked_weapons=[self.player.weapons[key].name for key in self._weapon_keys() if self.player.has_weapon(key)],
                 zone_name=self._current_zone_name(),
                 zone_progress=self._zone_progress_text(),
+                event_name=self.active_zone_event.get("label", "Sin evento"),
+                event_description=self.active_zone_event.get("description", ""),
+                quest_text=self._side_quest_text(),
             )
             self.ui.draw_minimap(
                 self.screen,
@@ -651,6 +665,7 @@ class Game:
             self.score += 40
         else:
             self.score += 25
+        self._advance_side_quest("enemy")
 
     def _finalize_session(self, victory: bool) -> None:
         if self._session_saved:
@@ -666,6 +681,84 @@ class Game:
         self.save_data.active_weapon = self.player.active_weapon_key
         self.save_data.unlocked_weapons = sorted(self.player.unlocked_weapons)
         save_game_save(self.save_data)
+
+    def _roll_zone_event(self, first_event: bool = False) -> None:
+        events = [
+            {
+                "key": "fortune",
+                "label": "Fortuna",
+                "description": "Los tesoros valen mas en esta zona.",
+                "treasure_multiplier": 1.35,
+                "enemy_attack_multiplier": 1.0,
+                "player_damage_bonus": 0,
+            },
+            {
+                "key": "frenesi",
+                "label": "Frenesi",
+                "description": "Los enemigos atacan con mas fuerza.",
+                "treasure_multiplier": 1.0,
+                "enemy_attack_multiplier": 1.18,
+                "player_damage_bonus": 0,
+            },
+            {
+                "key": "bendicion",
+                "label": "Bendicion",
+                "description": "Tus disparos ganan poder adicional.",
+                "treasure_multiplier": 1.0,
+                "enemy_attack_multiplier": 1.0,
+                "player_damage_bonus": 2,
+            },
+        ]
+
+        self.active_zone_event = random.choice(events)
+
+        if first_event:
+            self.message = f"Evento activo: {self.active_zone_event['label']}"
+
+    def _generate_side_quest(self) -> None:
+        quests = [
+            {"key": "enemy", "label": "Derrota enemigos", "target": random.randint(3, 5), "reward_gold": 18, "reward_score": 20},
+            {"key": "treasure", "label": "Recoge tesoros", "target": random.randint(2, 4), "reward_gold": 20, "reward_score": 24},
+            {"key": "zone", "label": "Explora zonas", "target": 1, "reward_gold": 25, "reward_score": 30},
+        ]
+        self.side_quest = random.choice(quests)
+        self.side_quest["progress"] = 0
+        self.side_quest["completed"] = False
+
+    def _advance_side_quest(self, quest_key: str, amount: int = 1) -> None:
+        if not self.side_quest or self.side_quest.get("completed"):
+            return
+
+        if self.side_quest.get("key") != quest_key:
+            return
+
+        self.side_quest["progress"] += amount
+        if self.side_quest["progress"] >= self.side_quest["target"]:
+            self.side_quest["completed"] = True
+            self.player.gold += self.side_quest["reward_gold"]
+            self.score += self.side_quest["reward_score"]
+            self._grant_xp(10)
+            self.audio.play("pickup")
+            self._spawn_burst(
+                x=self.player.rect.centerx,
+                y=self.player.rect.centery,
+                color=settings.PARTICLE_PICKUP_COLOR,
+                count=12,
+                speed_range=(40, 160),
+                life_range=(0.18, 0.4),
+                radius_range=(2, 4),
+            )
+            self.message = f"Mision completada: {self.side_quest['label']}"
+            self._generate_side_quest()
+
+    def _side_quest_text(self) -> str:
+        if not self.side_quest:
+            return "Sin mision activa"
+
+        progress = self.side_quest.get("progress", 0)
+        target = self.side_quest.get("target", 0)
+        label = self.side_quest.get("label", "Mision")
+        return f"Mision: {label} {progress}/{target}"
 
     def _spawn_burst(
         self,
