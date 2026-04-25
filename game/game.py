@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import random
+
 import pygame
 
 from game import settings
@@ -28,6 +30,8 @@ class Game:
         self.score = 0
         self.attack_cooldown = 0.0
         self.contact_damage_timer = 0.0
+        self.pending_level_ups = 0
+        self.level_up_options: list[dict[str, str]] = []
         self.message = ""
         self.game_over = False
         self.victory = False
@@ -50,8 +54,23 @@ class Game:
             if event.type == pygame.QUIT:
                 return False
             if event.type == pygame.KEYDOWN:
+                if self._level_up_menu_open():
+                    if event.key in (pygame.K_1, pygame.K_KP1):
+                        self._apply_upgrade_choice(0)
+                    elif event.key in (pygame.K_2, pygame.K_KP2):
+                        self._apply_upgrade_choice(1)
+                    elif event.key in (pygame.K_3, pygame.K_KP3):
+                        self._apply_upgrade_choice(2)
+                    continue
+
                 if event.key == pygame.K_SPACE and not self.game_over and not self.victory:
                     self._player_attack()
+                if event.key in (pygame.K_1, pygame.K_KP1):
+                    self._set_weapon_by_index(0)
+                if event.key in (pygame.K_2, pygame.K_KP2):
+                    self._set_weapon_by_index(1)
+                if event.key in (pygame.K_3, pygame.K_KP3):
+                    self._set_weapon_by_index(2)
                 if event.key == pygame.K_e and not self.game_over and not self.victory:
                     self._try_shop_heal()
                 if event.key == pygame.K_r and (self.game_over or self.victory):
@@ -62,6 +81,9 @@ class Game:
     def _update(self, dt: float) -> None:
         self.attack_cooldown = max(0.0, self.attack_cooldown - dt)
         self.contact_damage_timer = max(0.0, self.contact_damage_timer - dt)
+
+        if self._level_up_menu_open():
+            return
 
         keys = pygame.key.get_pressed()
         direction = pygame.Vector2(
@@ -85,13 +107,15 @@ class Game:
         if self.attack_cooldown > 0:
             return
 
-        self.attack_cooldown = settings.PROJECTILE_COOLDOWN
+        weapon = self.player.get_active_weapon()
+        self.attack_cooldown = weapon.cooldown
         self.projectiles.append(
             Projectile(
                 x=self.player.rect.centerx,
                 y=self.player.rect.centery,
                 direction=self.player.facing,
-                speed=settings.PROJECTILE_SPEED,
+                weapon=weapon,
+                damage=weapon.damage + self.player.stats.attack // 2,
             )
         )
 
@@ -105,10 +129,10 @@ class Game:
 
             enemy_hit = self._find_enemy_hit_by_projectile(projectile)
             if enemy_hit is not None:
-                enemy_hit.take_damage(self.player.stats.attack + 2)
+                enemy_hit.take_damage(projectile.damage)
                 if not enemy_hit.alive:
                     self.player.gold += 8
-                    self.player.gain_xp(14)
+                    self._grant_xp(14)
                     self.score += 25
                 self.projectiles.remove(projectile)
 
@@ -137,7 +161,7 @@ class Game:
             if not treasure.collected and self.player.rect.colliderect(treasure.rect):
                 treasure.collected = True
                 self.player.gold += treasure.value
-                self.player.gain_xp(10)
+                self._grant_xp(10)
                 self.score += treasure.value
 
     def _check_trap_collisions(self) -> None:
@@ -207,7 +231,7 @@ class Game:
                 self._draw_enemy_health_bar(enemy)
 
         for projectile in self.projectiles:
-            pygame.draw.rect(self.screen, settings.PROJECTILE_COLOR, projectile.rect)
+            pygame.draw.rect(self.screen, projectile.color, projectile.rect)
 
         if self._should_draw_player():
             pygame.draw.rect(self.screen, settings.PLAYER_COLOR, self.player.rect)
@@ -220,7 +244,16 @@ class Game:
             xp=self.player.xp,
             gold=self.player.gold,
             score=self.score,
+            active_weapon=self.player.get_active_weapon().name,
+            unlocked_weapons=[self.player.weapons[key].name for key in self._weapon_keys() if self.player.has_weapon(key)],
         )
+
+        if self._level_up_menu_open():
+            self.ui.draw_level_up_menu(
+                self.screen,
+                options=self.level_up_options,
+                pending_levels=self.pending_level_ups,
+            )
 
         if self.message:
             message_text = self.font.render(self.message, True, settings.TEXT_COLOR)
@@ -257,3 +290,98 @@ class Game:
 
         blink_phase = (pygame.time.get_ticks() // settings.PLAYER_BLINK_INTERVAL_MS) % 2
         return blink_phase == 0
+
+    def _grant_xp(self, amount: int) -> None:
+        levels_gained = self.player.gain_xp(amount)
+        if levels_gained > 0:
+            self.pending_level_ups += levels_gained
+            if not self.level_up_options:
+                self.level_up_options = self._build_level_up_options()
+
+    def _level_up_menu_open(self) -> bool:
+        return self.pending_level_ups > 0 and len(self.level_up_options) > 0
+
+    def _build_level_up_options(self) -> list[dict[str, str]]:
+        options: list[dict[str, str]] = [
+            {
+                "key": "hp",
+                "title": "Vitalidad +20",
+                "description": "Aumenta la vida maxima y recupera 20 HP.",
+            },
+            {
+                "key": "attack",
+                "title": "Ataque +2",
+                "description": "Tus disparos ganan mas poder.",
+            },
+            {
+                "key": "defense",
+                "title": "Defensa +1",
+                "description": "Recibes menos dano al chocar.",
+            },
+        ]
+
+        if not self.player.has_weapon("rapid"):
+            options.append(
+                {
+                    "key": "unlock_rapid",
+                    "title": "Desbloquear Rafaga",
+                    "description": "Arma rapida con baja cadencia y poco dano.",
+                }
+            )
+
+        if not self.player.has_weapon("heavy"):
+            options.append(
+                {
+                    "key": "unlock_heavy",
+                    "title": "Desbloquear Canon",
+                    "description": "Arma lenta pero devastadora.",
+                }
+            )
+
+        if len(options) > 3:
+            return random.sample(options, 3)
+
+        return options[:3]
+
+    def _apply_upgrade_choice(self, index: int) -> None:
+        if index >= len(self.level_up_options):
+            return
+
+        choice = self.level_up_options[index]
+        upgrade_key = choice["key"]
+
+        if upgrade_key == "hp":
+            self.player.boost_max_hp(20, heal_amount=20)
+            self.message = "Mejora elegida: Vitalidad"
+        elif upgrade_key == "attack":
+            self.player.boost_attack(2)
+            self.message = "Mejora elegida: Ataque"
+        elif upgrade_key == "defense":
+            self.player.boost_defense(1)
+            self.message = "Mejora elegida: Defensa"
+        elif upgrade_key == "unlock_rapid":
+            self.player.unlock_weapon("rapid")
+            self.player.set_active_weapon("rapid")
+            self.message = "Desbloqueaste Rafaga"
+        elif upgrade_key == "unlock_heavy":
+            self.player.unlock_weapon("heavy")
+            self.player.set_active_weapon("heavy")
+            self.message = "Desbloqueaste Canon"
+
+        self.pending_level_ups = max(0, self.pending_level_ups - 1)
+        if self.pending_level_ups > 0:
+            self.level_up_options = self._build_level_up_options()
+        else:
+            self.level_up_options = []
+
+    def _set_weapon_by_index(self, index: int) -> None:
+        weapon_keys = self._weapon_keys()
+        if index >= len(weapon_keys):
+            return
+
+        weapon_key = weapon_keys[index]
+        if self.player.set_active_weapon(weapon_key):
+            self.message = f"Arma activa: {self.player.get_active_weapon().name}"
+
+    def _weapon_keys(self) -> list[str]:
+        return ["basic", "rapid", "heavy"]
