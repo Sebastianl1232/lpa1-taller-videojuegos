@@ -25,6 +25,7 @@ class Game:
         self.ui = UI(self.font)
         self.audio = AudioManager()
         self.save_data = load_game_save()
+        self.difficulty = "normal"
         self.reset()
 
     def reset(self) -> None:
@@ -32,7 +33,7 @@ class Game:
         self._apply_save_data_to_player()
         self.projectiles: list[Projectile] = []
         self.particles: list[Particle] = []
-        self.world = World()
+        self.world = World(difficulty=self.difficulty)
         self.score = 0
         self.attack_cooldown = 0.0
         self.contact_damage_timer = 0.0
@@ -44,6 +45,7 @@ class Game:
         self.game_state = "title"
         self.active_zone_index = 0
         self.zone_completion_bonus = 20
+        self.objective_score = settings.DIFFICULTY_PROFILES[self.difficulty]["objective_score"]
         self.frame_stats = {
             "enemies_defeated": 0,
             "treasures_collected": 0,
@@ -79,7 +81,14 @@ class Game:
                 return False
             if event.type == pygame.KEYDOWN:
                 if self.game_state == "title":
-                    if event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                    if event.key == pygame.K_1:
+                        self.difficulty = "easy"
+                    elif event.key == pygame.K_2:
+                        self.difficulty = "normal"
+                    elif event.key == pygame.K_3:
+                        self.difficulty = "hard"
+                    elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                        self.reset()
                         self.game_state = "playing"
                     if event.key == pygame.K_ESCAPE:
                         return False
@@ -379,7 +388,7 @@ class Game:
         all_enemies_defeated = all(not e.alive for e in self.world.enemies)
         miniboss_defeated = any(e.enemy_type == "mini_jefe" and not e.alive for e in self.world.enemies)
 
-        if (self.score >= settings.OBJECTIVE_SCORE and miniboss_defeated) or (all_treasures_collected and all_enemies_defeated):
+        if (self.score >= self.objective_score and miniboss_defeated) or (all_treasures_collected and all_enemies_defeated):
             self.victory = True
             self.game_state = "victory"
             self.message = "Victoria. Presiona R para jugar otra vez"
@@ -388,6 +397,14 @@ class Game:
 
     def _draw(self) -> None:
         self.screen.fill(settings.BACKGROUND_COLOR)
+
+        self._draw_background_grid()
+
+        for zone in self.world.objective_zones:
+            self._draw_zone_backdrop(zone)
+
+        for decoration in self.world.decorations:
+            self._draw_decoration(decoration)
 
         for wall in self.world.walls:
             pygame.draw.rect(self.screen, settings.WALL_COLOR, wall)
@@ -433,6 +450,7 @@ class Game:
                 best_score=self.save_data.best_score,
                 total_runs=self.save_data.total_runs,
                 best_level=self.save_data.best_level,
+                difficulty_label=settings.DIFFICULTY_PROFILES[self.difficulty]["label"],
             )
         else:
             self.ui.draw_hud(
@@ -447,6 +465,14 @@ class Game:
                 unlocked_weapons=[self.player.weapons[key].name for key in self._weapon_keys() if self.player.has_weapon(key)],
                 zone_name=self._current_zone_name(),
                 zone_progress=self._zone_progress_text(),
+            )
+            self.ui.draw_minimap(
+                self.screen,
+                player_rect=self.player.rect,
+                world_size=(settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT),
+                zones=self.world.objective_zones,
+                enemies=self.world.enemies,
+                shop_zone=self.world.shop_zone,
             )
 
             if self._level_up_menu_open():
@@ -495,6 +521,38 @@ class Game:
             settings.ENEMY_HP_COLOR,
             pygame.Rect(bar_x, bar_y, current_width, bar_height),
         )
+
+    def _draw_background_grid(self) -> None:
+        grid_color = (28, 35, 44)
+        step = 40
+        for x in range(0, settings.SCREEN_WIDTH, step):
+            pygame.draw.line(self.screen, grid_color, (x, 0), (x, settings.SCREEN_HEIGHT), 1)
+        for y in range(0, settings.SCREEN_HEIGHT, step):
+            pygame.draw.line(self.screen, grid_color, (0, y), (settings.SCREEN_WIDTH, y), 1)
+
+    def _draw_zone_backdrop(self, zone) -> None:
+        color = (34, 42, 54) if not zone.completed else (28, 52, 38)
+        overlay = pygame.Surface((zone.rect.width, zone.rect.height), pygame.SRCALPHA)
+        overlay.fill((*color, 60))
+        self.screen.blit(overlay, zone.rect.topleft)
+
+        border_color = (68, 88, 108) if not zone.completed else (96, 160, 120)
+        pygame.draw.rect(self.screen, border_color, zone.rect, 2)
+
+    def _draw_decoration(self, decoration) -> None:
+        if decoration.kind == "pillar":
+            pygame.draw.rect(self.screen, decoration.color, decoration.rect, border_radius=3)
+            top = pygame.Rect(decoration.rect.x - 4, decoration.rect.y - 4, decoration.rect.width + 8, 8)
+            pygame.draw.rect(self.screen, (96, 108, 124), top, border_radius=4)
+        elif decoration.kind == "lamp":
+            pygame.draw.circle(self.screen, decoration.color, decoration.rect.center, decoration.rect.width // 2)
+            glow = pygame.Surface((40, 40), pygame.SRCALPHA)
+            pygame.draw.circle(glow, (*decoration.color, 40), (20, 20), 16)
+            self.screen.blit(glow, (decoration.rect.centerx - 20, decoration.rect.centery - 20))
+        elif decoration.kind == "rune":
+            pygame.draw.rect(self.screen, decoration.color, decoration.rect, border_radius=2)
+            pygame.draw.line(self.screen, (130, 150, 180), decoration.rect.topleft, decoration.rect.bottomright, 1)
+            pygame.draw.line(self.screen, (130, 150, 180), decoration.rect.topright, decoration.rect.bottomleft, 1)
 
     def _should_draw_player(self) -> bool:
         if self.contact_damage_timer <= 0:
