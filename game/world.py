@@ -50,6 +50,7 @@ class World:
             Enemy(520, 130, patrol_width=90, enemy_type="volador"),
             Enemy(720, 250, patrol_width=80, enemy_type="terrestre"),
             Enemy(330, 520, patrol_width=95, enemy_type="volador"),
+            Enemy(760, 520, patrol_width=110, enemy_type="mini_jefe"),
         ]
 
     def _spawn_treasures(self) -> list[Treasure]:
