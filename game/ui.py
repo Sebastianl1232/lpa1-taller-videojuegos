@@ -25,6 +25,9 @@ class UI:
         unlocked_weapons: list[str],
         zone_name: str,
         zone_progress: str,
+        event_name: str,
+        event_description: str,
+        quest_text: str,
     ) -> None:
         hp_text = self.font.render(f"HP: {hp}/{max_hp}", True, settings.TEXT_COLOR)
         level_text = self.font.render(f"Nivel: {level}  XP: {xp}", True, settings.TEXT_COLOR)
@@ -33,6 +36,9 @@ class UI:
         weapon_text = self.font.render(f"Arma: {active_weapon}", True, settings.TEXT_COLOR)
         zone_text = self.small_font.render(f"Objetivo: {zone_name}", True, settings.TEXT_COLOR)
         progress_text = self.small_font.render(zone_progress, True, settings.TEXT_COLOR)
+        event_text = self.small_font.render(f"Evento: {event_name}", True, settings.TEXT_COLOR)
+        event_desc_text = self.small_font.render(event_description, True, settings.TEXT_COLOR)
+        quest_text_surface = self.small_font.render(quest_text, True, settings.TEXT_COLOR)
 
         surface.blit(hp_text, (24, 20))
         surface.blit(level_text, (24, 50))
@@ -41,6 +47,9 @@ class UI:
         surface.blit(weapon_text, (24, 140))
         surface.blit(zone_text, (24, 180))
         surface.blit(progress_text, (24, 205))
+        surface.blit(event_text, (24, 235))
+        surface.blit(event_desc_text, (24, 260))
+        surface.blit(quest_text_surface, (24, 285))
 
         weapon_hint = self.small_font.render("1-3 cambian arma | Espacio: disparar | E: tienda", True, settings.TEXT_COLOR)
         unlocked_text = self.small_font.render(f"Desbloqueadas: {', '.join(unlocked_weapons)}", True, settings.TEXT_COLOR)
