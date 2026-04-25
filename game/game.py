@@ -36,6 +36,8 @@ class Game:
         self.game_over = False
         self.victory = False
         self.game_state = "title"
+        self.active_zone_index = 0
+        self.zone_completion_bonus = 20
         self.frame_stats = {
             "enemies_defeated": 0,
             "treasures_collected": 0,
@@ -139,6 +141,7 @@ class Game:
         self._check_treasure_collisions()
         self._check_trap_collisions()
         self._check_enemy_collisions()
+        self._check_objective_zones()
         self._check_game_state()
 
     def _player_attack(self) -> None:
@@ -202,6 +205,34 @@ class Game:
                 self._grant_xp(10)
                 self.score += treasure.value
                 self.frame_stats["treasures_collected"] += 1
+
+    def _check_objective_zones(self) -> None:
+        if self.active_zone_index >= len(self.world.objective_zones):
+            return
+
+        active_zone = self.world.objective_zones[self.active_zone_index]
+        if active_zone.completed:
+            return
+
+        if not self.player.rect.colliderect(active_zone.rect):
+            return
+
+        zone_enemies = [enemy for enemy in self.world.enemies if enemy.rect.colliderect(active_zone.rect)]
+        zone_treasures = [treasure for treasure in self.world.treasures if treasure.rect.colliderect(active_zone.rect)]
+
+        enemies_cleared = all(not enemy.alive for enemy in zone_enemies)
+        treasures_cleared = all(treasure.collected for treasure in zone_treasures)
+
+        if enemies_cleared and treasures_cleared:
+            active_zone.completed = True
+            self.score += self.zone_completion_bonus
+            self.player.gold += 10
+            self._grant_xp(12)
+            self.message = f"Zona completada: {active_zone.name}"
+            self.active_zone_index += 1
+
+            if self.active_zone_index < len(self.world.objective_zones):
+                self.level_up_options = self.level_up_options
 
     def _check_trap_collisions(self) -> None:
         for trap in self.world.traps:
@@ -291,6 +322,8 @@ class Game:
                 score=self.score,
                 active_weapon=self.player.get_active_weapon().name,
                 unlocked_weapons=[self.player.weapons[key].name for key in self._weapon_keys() if self.player.has_weapon(key)],
+                zone_name=self._current_zone_name(),
+                zone_progress=self._zone_progress_text(),
             )
 
             if self._level_up_menu_open():
@@ -448,3 +481,16 @@ class Game:
 
     def _weapon_keys(self) -> list[str]:
         return ["basic", "rapid", "heavy"]
+
+    def _current_zone_name(self) -> str:
+        if self.active_zone_index >= len(self.world.objective_zones):
+            return "Todas las zonas completas"
+
+        return self.world.objective_zones[self.active_zone_index].name
+
+    def _zone_progress_text(self) -> str:
+        if self.active_zone_index >= len(self.world.objective_zones):
+            return "Progreso: 3/3"
+
+        completed = sum(1 for zone in self.world.objective_zones if zone.completed)
+        return f"Progreso: {completed}/3"
