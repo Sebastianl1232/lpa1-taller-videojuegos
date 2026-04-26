@@ -759,7 +759,14 @@ class Game:
 
     def _load_enemy_skins(self) -> None:
         project_root = os.path.dirname(os.path.dirname(__file__))
-        poses_dir = os.path.join(project_root, "docs", "Male adventurer", "Zombie", "PNG", "Poses")
+        pose_dir_candidates = [
+            os.path.join(project_root, "docs", "Imagenes", "Zombie", "PNG", "Poses"),
+            os.path.join(project_root, "docs", "Male adventurer", "Zombie", "PNG", "Poses"),
+        ]
+        poses_dir = next((path for path in pose_dir_candidates if os.path.isdir(path)), "")
+        if not poses_dir:
+            self._zombie_skin = {}
+            return
 
         required_files = {
             "idle": "character_zombie_idle.png",
@@ -821,7 +828,14 @@ class Game:
 
     def _load_player_skin(self) -> None:
         project_root = os.path.dirname(os.path.dirname(__file__))
-        poses_dir = os.path.join(project_root, "docs", "Male adventurer", "PNG", "Poses")
+        pose_dir_candidates = [
+            os.path.join(project_root, "docs", "Imagenes", "Male adventurer", "PNG", "Poses"),
+            os.path.join(project_root, "docs", "Male adventurer", "PNG", "Poses"),
+        ]
+        poses_dir = next((path for path in pose_dir_candidates if os.path.isdir(path)), "")
+        if not poses_dir:
+            self._player_skin = {}
+            return
 
         required_files = {
             "idle": "character_maleAdventurer_idle.png",
