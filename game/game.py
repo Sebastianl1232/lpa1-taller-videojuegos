@@ -36,6 +36,13 @@ class Game:
         self._player_attack_anim_duration = 0.24
         self._player_attack_style = "basic"
         self._load_player_skin()
+        self._zombie_skin: dict[str, pygame.Surface | list[pygame.Surface]] = {}
+        self._zombie_skin_scale = (42, 56)
+        self._owl_skin: pygame.Surface | None = None
+        self._owl_skin_scale = (38, 38)
+        self._enemy_anim_time = 0.0
+        self._load_enemy_skins()
+        self._load_flying_enemy_skin()
 
         self.ui = UI(self.font)
         self.audio = AudioManager()
@@ -189,6 +196,7 @@ class Game:
         self.attack_cooldown = max(0.0, self.attack_cooldown - dt)
         self.contact_damage_timer = max(0.0, self.contact_damage_timer - dt)
         self._player_attack_anim_timer = max(0.0, self._player_attack_anim_timer - dt)
+        self._enemy_anim_time += dt * 8.0
 
         if self._level_up_menu_open():
             return
@@ -535,8 +543,7 @@ class Game:
 
         for enemy in self.world.enemies:
             if enemy.alive:
-                color = settings.BOSS_COLOR if enemy.enemy_type == "mini_jefe" else settings.ENEMY_COLOR
-                pygame.draw.rect(self.screen, color, enemy.rect)
+                self._draw_enemy(enemy)
                 self._draw_enemy_health_bar(enemy)
 
         for projectile in self.projectiles:
@@ -715,12 +722,102 @@ class Game:
             pygame.draw.line(self.screen, (130, 150, 180), decoration.rect.topleft, decoration.rect.bottomright, 1)
             pygame.draw.line(self.screen, (130, 150, 180), decoration.rect.topright, decoration.rect.bottomleft, 1)
 
+    def _draw_enemy(self, enemy) -> None:
+        if enemy.enemy_type == "terrestre" and self._zombie_skin:
+            idle = self._zombie_skin.get("idle")
+            walk_frames = self._zombie_skin.get("walk")
+            if isinstance(idle, pygame.Surface) and isinstance(walk_frames, list) and walk_frames:
+                moving = abs(enemy.direction) > 0
+                if moving:
+                    frame_index = int(self._enemy_anim_time) % len(walk_frames)
+                    sprite = walk_frames[frame_index]
+                else:
+                    sprite = idle
+
+                if enemy.direction < 0:
+                    sprite = pygame.transform.flip(sprite, True, False)
+
+                draw_rect = sprite.get_rect()
+                draw_rect.midbottom = (enemy.rect.centerx, enemy.rect.bottom + 4)
+                self.screen.blit(sprite, draw_rect)
+                return
+
+        if enemy.enemy_type == "volador" and isinstance(self._owl_skin, pygame.Surface):
+            draw_rect = self._owl_skin.get_rect(center=enemy.rect.center)
+            self.screen.blit(self._owl_skin, draw_rect)
+            return
+
+        color = settings.BOSS_COLOR if enemy.enemy_type == "mini_jefe" else settings.ENEMY_COLOR
+        pygame.draw.rect(self.screen, color, enemy.rect)
+
     def _should_draw_player(self) -> bool:
         if self.contact_damage_timer <= 0:
             return True
 
         blink_phase = (pygame.time.get_ticks() // settings.PLAYER_BLINK_INTERVAL_MS) % 2
         return blink_phase == 0
+
+    def _load_enemy_skins(self) -> None:
+        project_root = os.path.dirname(os.path.dirname(__file__))
+        poses_dir = os.path.join(project_root, "docs", "Male adventurer", "Zombie", "PNG", "Poses")
+
+        required_files = {
+            "idle": "character_zombie_idle.png",
+        }
+        walk_files = [
+            "character_zombie_walk0.png",
+            "character_zombie_walk1.png",
+            "character_zombie_walk2.png",
+            "character_zombie_walk3.png",
+            "character_zombie_walk4.png",
+            "character_zombie_walk5.png",
+            "character_zombie_walk6.png",
+            "character_zombie_walk7.png",
+        ]
+
+        loaded: dict[str, pygame.Surface | list[pygame.Surface]] = {}
+        try:
+            for key, filename in required_files.items():
+                path = os.path.join(poses_dir, filename)
+                if not os.path.exists(path):
+                    self._zombie_skin = {}
+                    return
+                surface = pygame.image.load(path).convert_alpha()
+                loaded[key] = pygame.transform.smoothscale(surface, self._zombie_skin_scale)
+
+            walk_frames: list[pygame.Surface] = []
+            for filename in walk_files:
+                path = os.path.join(poses_dir, filename)
+                if not os.path.exists(path):
+                    self._zombie_skin = {}
+                    return
+                surface = pygame.image.load(path).convert_alpha()
+                walk_frames.append(pygame.transform.smoothscale(surface, self._zombie_skin_scale))
+
+            loaded["walk"] = walk_frames
+            self._zombie_skin = loaded
+        except (pygame.error, OSError):
+            self._zombie_skin = {}
+
+    def _load_flying_enemy_skin(self) -> None:
+        project_root = os.path.dirname(os.path.dirname(__file__))
+        candidates = [
+            os.path.join(project_root, "docs", "Imagenes", "Buho", "Round", "owl.png"),
+            os.path.join(project_root, "docs", "Imagenes", "Buho", "Round (outline)", "owl.png"),
+            os.path.join(project_root, "docs", "Imagenes", "Buho", "Round without details", "owl.png"),
+            os.path.join(project_root, "docs", "Imagenes", "Buho", "Round without details (outline)", "owl.png"),
+        ]
+
+        self._owl_skin = None
+        for image_path in candidates:
+            if not os.path.exists(image_path):
+                continue
+            try:
+                surface = pygame.image.load(image_path).convert_alpha()
+                self._owl_skin = pygame.transform.smoothscale(surface, self._owl_skin_scale)
+                return
+            except (pygame.error, OSError):
+                continue
 
     def _load_player_skin(self) -> None:
         project_root = os.path.dirname(os.path.dirname(__file__))
