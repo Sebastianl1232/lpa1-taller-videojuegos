@@ -18,7 +18,9 @@ from game.world import World
 class Game:
     def __init__(self) -> None:
         pygame.init()
-        self.screen = pygame.display.set_mode((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
+        self.window_size = (settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT)
+        self.window = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
+        self.screen = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
         pygame.display.set_caption(settings.TITLE)
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("consolas", 28)
@@ -32,11 +34,12 @@ class Game:
         self.reset()
 
     def reset(self) -> None:
+        self.floor = 1
         self.player = Player(60, 60, speed=settings.PLAYER_SPEED)
         self._apply_save_data_to_player()
         self.projectiles: list[Projectile] = []
         self.particles: list[Particle] = []
-        self.world = World(difficulty=self.difficulty)
+        self.world = World(difficulty=self.difficulty, floor=self.floor)
         self.score = 0
         self.attack_cooldown = 0.0
         self.contact_damage_timer = 0.0
@@ -49,7 +52,7 @@ class Game:
         self.previous_game_state = "title"
         self.active_zone_index = 0
         self.zone_completion_bonus = 20
-        self.objective_score = settings.DIFFICULTY_PROFILES[self.difficulty]["objective_score"]
+        self.objective_score = self._floor_objective_score()
         self.active_zone_event = {}
         self.side_quest = {}
         self.frame_stats = {
@@ -91,6 +94,12 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
+            if event.type == pygame.VIDEORESIZE:
+                width = max(640, event.w)
+                height = max(360, event.h)
+                self.window_size = (width, height)
+                self.window = pygame.display.set_mode(self.window_size, pygame.RESIZABLE)
+                continue
             if event.type == pygame.KEYDOWN:
                 if self.game_state == "title":
                     if event.key == pygame.K_1:
@@ -195,19 +204,30 @@ class Game:
         weapon = self.player.get_active_weapon()
         self.attack_cooldown = weapon.cooldown
         damage_bonus = self.active_zone_event.get("player_damage_bonus", 0)
+        mouse_x, mouse_y = self._window_to_game_coords(*pygame.mouse.get_pos())
+        shot_direction = pygame.Vector2(
+            mouse_x - self.player.rect.centerx,
+            mouse_y - self.player.rect.centery,
+        )
+        if shot_direction.length_squared() == 0:
+            shot_direction = self.player.facing
+        else:
+            shot_direction = shot_direction.normalize()
+
+        self.player.facing = shot_direction
         self.projectiles.append(
             Projectile(
                 x=self.player.rect.centerx,
                 y=self.player.rect.centery,
-                direction=self.player.facing,
+                direction=shot_direction,
                 weapon=weapon,
                 damage=weapon.damage + self.player.stats.attack // 2 + damage_bonus,
             )
         )
         self.audio.play("shoot")
         self._spawn_burst(
-            x=self.player.rect.centerx + int(self.player.facing.x * 12),
-            y=self.player.rect.centery + int(self.player.facing.y * 12),
+            x=self.player.rect.centerx + int(shot_direction.x * 12),
+            y=self.player.rect.centery + int(shot_direction.y * 12),
             color=weapon.color,
             count=5,
             speed_range=(40, 110),
@@ -422,19 +442,7 @@ class Game:
         miniboss_defeated = any(e.enemy_type == "mini_jefe" and not e.alive for e in self.world.enemies)
 
         if (self.score >= self.objective_score and miniboss_defeated) or (all_treasures_collected and all_enemies_defeated):
-            self.victory = True
-            self.game_state = "victory"
-            self.message = "Victoria. Presiona R para jugar otra vez"
-            
-            # Trackear logros de victoria
-            self.achievements.unlock("first_victory")
-            if self.difficulty == "hard":
-                self.achievements.unlock("hard_mode")
-            if self._accumulated_time < 180:  # 3 minutos
-                self.achievements.unlock("speed_run")
-            
-            self._finalize_session(victory=True)
-            self.audio.play("victory")
+            self._advance_dungeon_floor()
 
     def _update_achievement_notifications(self, dt: float) -> None:
         newly_unlocked = self.achievements.get_newly_unlocked()
@@ -534,12 +542,14 @@ class Game:
         else:
             self.ui.draw_hud(
                 self.screen,
+                floor=self.floor,
                 hp=self.player.hp,
                 max_hp=self.player.stats.max_hp,
                 level=self.player.level,
                 xp=self.player.xp,
                 gold=self.player.gold,
                 score=self.score,
+                objective_score=self.objective_score,
                 active_weapon=self.player.get_active_weapon().name,
                 unlocked_weapons=[self.player.weapons[key].name for key in self._weapon_keys() if self.player.has_weapon(key)],
                 zone_name=self._current_zone_name(),
@@ -586,7 +596,37 @@ class Game:
             icon, name, description, _ = self._achievement_notifications[0]
             self.ui.draw_achievement_notification(self.screen, icon, name, description)
 
+        viewport = self._get_viewport_rect()
+        self.window.fill((0, 0, 0))
+        scaled_frame = pygame.transform.smoothscale(self.screen, viewport.size)
+        self.window.blit(scaled_frame, viewport.topleft)
         pygame.display.flip()
+
+    def _window_to_game_coords(self, window_x: int, window_y: int) -> tuple[int, int]:
+        viewport = self._get_viewport_rect()
+        relative_x = window_x - viewport.x
+        relative_y = window_y - viewport.y
+        clamped_x = min(max(relative_x, 0), max(0, viewport.width - 1))
+        clamped_y = min(max(relative_y, 0), max(0, viewport.height - 1))
+        scale_x = settings.SCREEN_WIDTH / max(1, viewport.width)
+        scale_y = settings.SCREEN_HEIGHT / max(1, viewport.height)
+        game_x = int(clamped_x * scale_x)
+        game_y = int(clamped_y * scale_y)
+        return game_x, game_y
+
+    def _get_viewport_rect(self) -> pygame.Rect:
+        base_w = settings.SCREEN_WIDTH
+        base_h = settings.SCREEN_HEIGHT
+        window_w, window_h = self.window_size
+        if window_w <= 0 or window_h <= 0:
+            return pygame.Rect(0, 0, base_w, base_h)
+
+        scale = min(window_w / base_w, window_h / base_h)
+        scaled_w = max(1, int(base_w * scale))
+        scaled_h = max(1, int(base_h * scale))
+        offset_x = (window_w - scaled_w) // 2
+        offset_y = (window_h - scaled_h) // 2
+        return pygame.Rect(offset_x, offset_y, scaled_w, scaled_h)
 
     def _draw_enemy_health_bar(self, enemy) -> None:
         bar_width = enemy.rect.width
@@ -898,8 +938,48 @@ class Game:
         return self.world.objective_zones[self.active_zone_index].name
 
     def _zone_progress_text(self) -> str:
+        total_zones = len(self.world.objective_zones)
         if self.active_zone_index >= len(self.world.objective_zones):
-            return "Progreso: 3/3"
+            return f"Progreso: {total_zones}/{total_zones}"
 
         completed = sum(1 for zone in self.world.objective_zones if zone.completed)
-        return f"Progreso: {completed}/3"
+        return f"Progreso: {completed}/{total_zones}"
+
+    def _floor_objective_score(self) -> int:
+        base_score = settings.DIFFICULTY_PROFILES[self.difficulty]["objective_score"]
+        multiplier = 1.0 + (self.floor - 1) * 0.22
+        return int(base_score * multiplier)
+
+    def _advance_dungeon_floor(self) -> None:
+        previous_floor = self.floor
+        self.floor += 1
+        self.objective_score = self._floor_objective_score()
+        self.world = World(difficulty=self.difficulty, floor=self.floor)
+        self.player.rect.topleft = (60, 60)
+        self.player.hp = min(self.player.stats.max_hp, self.player.hp + 22)
+        self.active_zone_index = 0
+        self.contact_damage_timer = 0.0
+        self.attack_cooldown = 0.0
+        self.projectiles.clear()
+        self.particles.clear()
+        self._roll_zone_event(first_event=True)
+        self._generate_side_quest()
+
+        if previous_floor == 1:
+            self.achievements.unlock("first_victory")
+            if self.difficulty == "hard":
+                self.achievements.unlock("hard_mode")
+            if self._accumulated_time < 180:
+                self.achievements.unlock("speed_run")
+
+        self.audio.play("victory")
+        self.message = f"Descendiste al piso {self.floor}. Los enemigos son mas fuertes."
+        self._spawn_burst(
+            x=self.player.rect.centerx,
+            y=self.player.rect.centery,
+            color=settings.PARTICLE_ZONE_COLOR,
+            count=24,
+            speed_range=(70, 220),
+            life_range=(0.2, 0.5),
+            radius_range=(2, 5),
+        )
