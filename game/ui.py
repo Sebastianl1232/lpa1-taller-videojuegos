@@ -203,7 +203,7 @@ class UI:
         start_hint = self.font.render("ENTER para jugar", True, (100, 200, 150))
         surface.blit(start_hint, ((settings.SCREEN_WIDTH - start_hint.get_width()) // 2, instructions_y))
         
-        controls = self.small_font.render("W/A/S/D o Flechas: mover  |  Espacio: disparar  |  E: tienda  |  P: pausa", True, (120, 140, 160))
+        controls = self.small_font.render("W/A/S/D o Flechas: mover  |  Espacio: disparar  |  E: tienda  |  P: pausa  |  L: logros", True, (120, 140, 160))
         surface.blit(controls, ((settings.SCREEN_WIDTH - controls.get_width()) // 2, instructions_y + 50))
 
     def draw_pause_overlay(self, surface: pygame.Surface) -> None:
