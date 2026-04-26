@@ -46,6 +46,7 @@ class Game:
         self.game_over = False
         self.victory = False
         self.game_state = "title"
+        self.previous_game_state = "title"
         self.active_zone_index = 0
         self.zone_completion_bonus = 20
         self.objective_score = settings.DIFFICULTY_PROFILES[self.difficulty]["objective_score"]
@@ -80,6 +81,8 @@ class Game:
             if self.game_state == "playing" or self._level_up_menu_open():
                 self._update(dt)
 
+            self._update_achievement_notifications(dt)
+
             self._draw(dt)
 
         pygame.quit()
@@ -96,11 +99,19 @@ class Game:
                         self.difficulty = "normal"
                     elif event.key == pygame.K_3:
                         self.difficulty = "hard"
+                    elif event.key == pygame.K_l:
+                        self.previous_game_state = "title"
+                        self.game_state = "achievements"
                     elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
                         self.reset()
                         self.game_state = "playing"
                     if event.key == pygame.K_ESCAPE:
                         return False
+                    continue
+
+                if self.game_state == "achievements":
+                    if event.key in (pygame.K_ESCAPE, pygame.K_l, pygame.K_RETURN):
+                        self.game_state = self.previous_game_state
                     continue
 
                 if self.game_state == "paused":
@@ -176,7 +187,6 @@ class Game:
         self._check_enemy_collisions()
         self._check_objective_zones()
         self._check_game_state()
-        self._update_achievement_notifications(dt)
 
     def _player_attack(self) -> None:
         if self.attack_cooldown > 0:
@@ -456,7 +466,7 @@ class Game:
         self.screen.fill(settings.BACKGROUND_COLOR)
         
         # Actualizar animaciones del UI
-        if self.game_state == "title":
+        if self.game_state in ("title", "achievements"):
             self.ui._update_title_animation(dt)
 
         self._draw_background_grid()
@@ -505,7 +515,7 @@ class Game:
         if self._should_draw_player():
             pygame.draw.rect(self.screen, settings.PLAYER_COLOR, self.player.rect)
 
-        if self.game_state == "title":
+        if self.game_state in ("title", "achievements"):
             self.ui.draw_title_screen(
                 self.screen,
                 best_score=self.save_data.best_score,
@@ -514,6 +524,13 @@ class Game:
                 difficulty_label=settings.DIFFICULTY_PROFILES[self.difficulty]["label"],
                 current_difficulty=self.difficulty,
             )
+            if self.game_state == "achievements":
+                self.ui.draw_achievements_menu(
+                    self.screen,
+                    achievements_data=self._achievement_ui_data(),
+                    unlocked_count=self.achievements.get_unlocked_count(),
+                    total_count=self.achievements.get_total_count(),
+                )
         else:
             self.ui.draw_hud(
                 self.screen,
@@ -564,6 +581,10 @@ class Game:
             if self.message and self.game_state == "playing":
                 message_text = self.font.render(self.message, True, settings.TEXT_COLOR)
                 self.screen.blit(message_text, (24, 146))
+
+        if self._achievement_notifications and self.game_state != "achievements":
+            icon, name, description, _ = self._achievement_notifications[0]
+            self.ui.draw_achievement_notification(self.screen, icon, name, description)
 
         pygame.display.flip()
 
