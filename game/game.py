@@ -75,7 +75,7 @@ class Game:
             if self.game_state == "playing" or self._level_up_menu_open():
                 self._update(dt)
 
-            self._draw()
+            self._draw(dt)
 
         pygame.quit()
 
@@ -406,8 +406,12 @@ class Game:
             self._finalize_session(victory=True)
             self.audio.play("victory")
 
-    def _draw(self) -> None:
+    def _draw(self, dt: float) -> None:
         self.screen.fill(settings.BACKGROUND_COLOR)
+        
+        # Actualizar animaciones del UI
+        if self.game_state == "title":
+            self.ui._update_title_animation(dt)
 
         self._draw_background_grid()
 
@@ -462,6 +466,7 @@ class Game:
                 total_runs=self.save_data.total_runs,
                 best_level=self.save_data.best_level,
                 difficulty_label=settings.DIFFICULTY_PROFILES[self.difficulty]["label"],
+                current_difficulty=self.difficulty,
             )
         else:
             self.ui.draw_hud(
