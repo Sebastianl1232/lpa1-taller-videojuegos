@@ -11,6 +11,8 @@ class UI:
     def __init__(self, font: pygame.font.Font) -> None:
         self.font = font
         self.small_font = pygame.font.SysFont("consolas", 20)
+        self.large_font = pygame.font.SysFont("consolas", 48, bold=True)
+        self.title_animation_time = 0.0
 
     def draw_hud(
         self,
@@ -88,28 +90,121 @@ class UI:
             surface.blit(title_text, (x + 14, y + 52))
             surface.blit(desc_text, (x + 14, y + 88))
 
-    def draw_title_screen(self, surface: pygame.Surface, best_score: int, total_runs: int, best_level: int, difficulty_label: str) -> None:
+    def _update_title_animation(self, dt: float) -> None:
+        """Actualiza el contador de animación del título."""
+        self.title_animation_time += dt
+
+    def _get_pulse_value(self, frequency: float = 2.0) -> float:
+        """Retorna un valor entre 0 y 1 para efectos de pulseo."""
+        import math
+        return (math.sin(self.title_animation_time * frequency) + 1) / 2
+
+    def _draw_background_pattern(self, surface: pygame.Surface) -> None:
+        """Dibuja un patrón decorativo en el fondo del título."""
         overlay = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT))
         overlay.fill((17, 21, 28))
+        
+        # Patrón de cuadrícula sutil
+        for x in range(0, settings.SCREEN_WIDTH, 60):
+            for y in range(0, settings.SCREEN_HEIGHT, 60):
+                pygame.draw.line(overlay, (35, 43, 56), (x, 0), (x, settings.SCREEN_HEIGHT), 1)
+                pygame.draw.line(overlay, (35, 43, 56), (0, y), (settings.SCREEN_WIDTH, y), 1)
+        
+        # Decoraciones en las esquinas
+        corner_size = 40
+        pygame.draw.rect(overlay, (74, 108, 132), (0, 0, corner_size, corner_size), 2)
+        pygame.draw.rect(overlay, (74, 108, 132), (settings.SCREEN_WIDTH - corner_size, 0, corner_size, corner_size), 2)
+        pygame.draw.rect(overlay, (74, 108, 132), (0, settings.SCREEN_HEIGHT - corner_size, corner_size, corner_size), 2)
+        pygame.draw.rect(overlay, (74, 108, 132), (settings.SCREEN_WIDTH - corner_size, settings.SCREEN_HEIGHT - corner_size, corner_size, corner_size), 2)
+        
         surface.blit(overlay, (0, 0))
 
-        title = self.font.render("Aventura 2D", True, settings.TEXT_COLOR)
-        subtitle = self.small_font.render("Explora, dispara, sube de nivel y vence al mini-jefe", True, settings.TEXT_COLOR)
-        start_text = self.small_font.render("Enter o Espacio para empezar", True, settings.TEXT_COLOR)
-        controls = self.small_font.render("1: Facil | 2: Normal | 3: Dificil | Enter: empezar", True, settings.TEXT_COLOR)
-        save_info = self.small_font.render(
-            f"Partidas: {total_runs} | Mejor puntaje: {best_score} | Mejor nivel: {best_level}",
-            True,
-            settings.TEXT_COLOR,
+    def draw_title_screen(
+        self, 
+        surface: pygame.Surface, 
+        best_score: int, 
+        total_runs: int, 
+        best_level: int, 
+        difficulty_label: str,
+        current_difficulty: str = "normal"
+    ) -> None:
+        """Dibuja la pantalla de título con UI mejorada."""
+        self._draw_background_pattern(surface)
+        
+        # Título principal con efecto de pulseo
+        pulse_intensity = self._get_pulse_value(1.5)
+        title_color = (
+            int(120 + pulse_intensity * 50),
+            int(200 + pulse_intensity * 55),
+            int(120 + pulse_intensity * 50)
         )
-        difficulty_text = self.small_font.render(f"Dificultad actual: {difficulty_label}", True, settings.TEXT_COLOR)
-
-        surface.blit(title, ((settings.SCREEN_WIDTH - title.get_width()) // 2, 170))
-        surface.blit(subtitle, ((settings.SCREEN_WIDTH - subtitle.get_width()) // 2, 225))
-        surface.blit(start_text, ((settings.SCREEN_WIDTH - start_text.get_width()) // 2, 305))
-        surface.blit(save_info, ((settings.SCREEN_WIDTH - save_info.get_width()) // 2, 350))
-        surface.blit(difficulty_text, ((settings.SCREEN_WIDTH - difficulty_text.get_width()) // 2, 380))
-        surface.blit(controls, ((settings.SCREEN_WIDTH - controls.get_width()) // 2, 415))
+        title = self.large_font.render("AVENTURA 2D", True, title_color)
+        surface.blit(title, ((settings.SCREEN_WIDTH - title.get_width()) // 2, 80))
+        
+        # Subtítulo
+        subtitle = self.font.render("Explora, dispara y vence al mini-jefe", True, (150, 180, 200))
+        surface.blit(subtitle, ((settings.SCREEN_WIDTH - subtitle.get_width()) // 2, 160))
+        
+        # Sección de estadísticas
+        stats_y = 240
+        save_info = self.small_font.render(
+            f"Partidas: {total_runs}  |  Mejor puntaje: {best_score}  |  Mejor nivel: {best_level}",
+            True,
+            (100, 140, 180)
+        )
+        surface.blit(save_info, ((settings.SCREEN_WIDTH - save_info.get_width()) // 2, stats_y))
+        
+        # Línea decorativa
+        line_y = 300
+        pygame.draw.line(surface, (74, 108, 132), (60, line_y), (settings.SCREEN_WIDTH - 60, line_y), 2)
+        
+        # Sección de selección de dificultad
+        difficulties = [
+            ("Fácil", "easy", (100, 180, 80)),
+            ("Normal", "normal", (150, 150, 150)),
+            ("Difícil", "hard", (220, 100, 100))
+        ]
+        
+        box_width = 140
+        box_height = 90
+        gap = 20
+        start_x = (settings.SCREEN_WIDTH - (box_width * 3 + gap * 2)) // 2
+        diff_y = 350
+        
+        for i, (label, key, base_color) in enumerate(difficulties):
+            x = start_x + i * (box_width + gap)
+            is_selected = (key == current_difficulty)
+            
+            # Caja de dificultad
+            box_color = base_color if is_selected else (50, 60, 80)
+            border_width = 3 if is_selected else 1
+            border_color = (255, 200, 100) if is_selected else base_color
+            
+            pygame.draw.rect(surface, box_color, (x, diff_y, box_width, box_height), border_radius=8)
+            pygame.draw.rect(surface, border_color, (x, diff_y, box_width, box_height), border_width, border_radius=8)
+            
+            # Texto de dificultad
+            diff_text = self.font.render(label, True, border_color)
+            text_y = diff_y + (box_height - diff_text.get_height()) // 2 - 15
+            surface.blit(diff_text, (x + (box_width - diff_text.get_width()) // 2, text_y))
+            
+            # Número de tecla
+            key_text = self.small_font.render(f"[{i + 1}]", True, (150, 150, 150))
+            surface.blit(key_text, (x + (box_width - key_text.get_width()) // 2, diff_y + box_height - 28))
+            
+            # Indicador de selección
+            if is_selected:
+                pulse = self._get_pulse_value(3.0) * 0.3 + 0.7
+                indicator_color = tuple(int(c * pulse) for c in border_color)
+                pygame.draw.circle(surface, indicator_color, (x + box_width // 2, diff_y - 15), 6)
+        
+        # Instrucciones
+        instructions_y = 500
+        start_hint = self.font.render("ENTER para jugar", True, (100, 200, 150))
+        surface.blit(start_hint, ((settings.SCREEN_WIDTH - start_hint.get_width()) // 2, instructions_y))
+        
+        controls = self.small_font.render("W/A/S/D o Flechas: mover  |  Espacio: disparar  |  E: tienda  |  P: pausa", True, (120, 140, 160))
+        surface.blit(controls, ((settings.SCREEN_WIDTH - controls.get_width()) // 2, instructions_y + 50))
 
     def draw_pause_overlay(self, surface: pygame.Surface) -> None:
         overlay = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT), pygame.SRCALPHA)
