@@ -45,6 +45,7 @@ class World:
         self.layouts = self._layout_catalog()
         self.layout = self.layouts[(self.floor - 1) % len(self.layouts)]
         self.walls = self._build_walls()
+        self._validate_chamber_accessibility()
         self.decorations = self._spawn_decorations()
         self.enemies = self._spawn_enemies()
         self.treasures = self._spawn_treasures()
@@ -94,11 +95,17 @@ class World:
             {
                 "name": "Pasillos Gemelos",
                 "walls": [
-                    pygame.Rect(280, 90, 20, 420),
-                    pygame.Rect(660, 90, 20, 420),
+                    # Muros verticales divisores con huecos para acceso
+                    pygame.Rect(280, 90, 20, 150),
+                    pygame.Rect(280, 340, 20, 170),
+                    pygame.Rect(660, 90, 20, 150),
+                    pygame.Rect(660, 340, 20, 170),
+                    # Muros horizontales superior e inferior
                     pygame.Rect(300, 90, 360, 20),
                     pygame.Rect(300, 490, 360, 20),
-                    pygame.Rect(450, 240, 60, 140),
+                    # Muro central dividido con hueco en el medio para acceso al jefe
+                    pygame.Rect(450, 240, 60, 50),
+                    pygame.Rect(450, 340, 60, 40),
                 ],
                 "enemy_specs": [
                     (120, 140, 80, "terrestre"),
@@ -172,6 +179,156 @@ class World:
                 ],
                 "shop_zone": pygame.Rect(60, 525, 130, 90),
             },
+            {
+                "name": "Arena Antigua",
+                "walls": [
+                    # Bordes circulares con arena central
+                    pygame.Rect(100, 60, 760, 20),
+                    pygame.Rect(100, 560, 760, 20),
+                    pygame.Rect(100, 80, 20, 480),
+                    pygame.Rect(820, 80, 20, 480),
+                    # Arena delimitada (abierta al medio)
+                    pygame.Rect(280, 180, 20, 180),
+                    pygame.Rect(280, 380, 20, 120),
+                    pygame.Rect(660, 180, 20, 180),
+                    pygame.Rect(660, 380, 20, 120),
+                ],
+                "enemy_specs": [
+                    (200, 130, 80, "terrestre"),
+                    (750, 130, 80, "volador"),
+                    (200, 520, 85, "volador"),
+                    (750, 520, 85, "terrestre"),
+                    (470, 320, 130, "mini_jefe"),
+                ],
+                "treasure_positions": [(140, 90), (820, 90), (140, 540), (820, 540)],
+                "trap_positions": [((470, 120), 14), ((280, 320), 12), ((660, 320), 12)],
+                "zones": [
+                    ("Gradas Oeste", pygame.Rect(120, 100, 170, 400)),
+                    ("Arena Central", pygame.Rect(310, 180, 360, 280)),
+                    ("Gradas Este", pygame.Rect(720, 100, 90, 400)),
+                ],
+                "decorations": [
+                    Decoration(pygame.Rect(200, 200, 16, 60), (122, 135, 155), "pillar"),
+                    Decoration(pygame.Rect(740, 200, 16, 60), (122, 135, 155), "pillar"),
+                    Decoration(pygame.Rect(470, 90, 20, 20), (255, 210, 120), "lamp"),
+                    Decoration(pygame.Rect(470, 520, 20, 20), (255, 210, 120), "lamp"),
+                    Decoration(pygame.Rect(400, 320, 28, 8), (84, 94, 114), "rune"),
+                    Decoration(pygame.Rect(540, 320, 28, 8), (84, 94, 114), "rune"),
+                    Decoration(pygame.Rect(140, 260, 8, 40), (84, 94, 114), "rune"),
+                    Decoration(pygame.Rect(802, 260, 8, 40), (84, 94, 114), "rune"),
+                ],
+                "shop_zone": pygame.Rect(820, 525, 130, 90),
+            },
+            {
+                "name": "Templo Perdido",
+                "walls": [
+                    # Solo bordes exteriores
+                    pygame.Rect(100, 60, 760, 20),
+                    pygame.Rect(100, 560, 760, 20),
+                    pygame.Rect(100, 80, 20, 480),
+                    pygame.Rect(820, 80, 20, 480),
+                ],
+                "enemy_specs": [
+                    (200, 120, 80, "volador"),
+                    (750, 120, 80, "volador"),
+                    (200, 500, 85, "terrestre"),
+                    (750, 500, 85, "terrestre"),
+                    (470, 310, 120, "mini_jefe"),
+                ],
+                "treasure_positions": [(140, 90), (820, 90), (140, 540), (820, 540)],
+                "trap_positions": [((200, 300), 12), ((470, 150), 13), ((750, 300), 11)],
+                "zones": [
+                    ("Ala Oeste", pygame.Rect(120, 100, 180, 400)),
+                    ("Santuario Central", pygame.Rect(330, 100, 280, 400)),
+                    ("Ala Este", pygame.Rect(670, 100, 130, 400)),
+                ],
+                "decorations": [
+                    Decoration(pygame.Rect(220, 200, 16, 60), (122, 135, 155), "pillar"),
+                    Decoration(pygame.Rect(720, 200, 16, 60), (122, 135, 155), "pillar"),
+                    Decoration(pygame.Rect(470, 100, 20, 20), (255, 210, 120), "lamp"),
+                    Decoration(pygame.Rect(470, 500, 20, 20), (255, 210, 120), "lamp"),
+                    Decoration(pygame.Rect(400, 310, 28, 8), (84, 94, 114), "rune"),
+                    Decoration(pygame.Rect(540, 310, 28, 8), (84, 94, 114), "rune"),
+                ],
+                "shop_zone": pygame.Rect(20, 525, 130, 90),
+            },
+            {
+                "name": "Catacumbas",
+                "walls": [
+                    # Solo bordes exteriores
+                    pygame.Rect(100, 60, 760, 20),
+                    pygame.Rect(100, 560, 760, 20),
+                    pygame.Rect(100, 80, 20, 480),
+                    pygame.Rect(820, 80, 20, 480),
+                ],
+                "enemy_specs": [
+                    (200, 140, 75, "terrestre"),
+                    (720, 140, 75, "volador"),
+                    (200, 500, 80, "volador"),
+                    (720, 500, 80, "terrestre"),
+                    (470, 310, 115, "mini_jefe"),
+                ],
+                "treasure_positions": [(140, 90), (820, 90), (140, 540), (820, 540)],
+                "trap_positions": [((300, 260), 13), ((470, 120), 14), ((680, 300), 12)],
+                "zones": [
+                    ("Camara Oeste", pygame.Rect(120, 100, 180, 400)),
+                    ("Nave Central", pygame.Rect(330, 100, 310, 400)),
+                    ("Camara Este", pygame.Rect(700, 100, 100, 400)),
+                ],
+                "decorations": [
+                    Decoration(pygame.Rect(160, 180, 16, 80), (122, 135, 155), "pillar"),
+                    Decoration(pygame.Rect(760, 180, 16, 80), (122, 135, 155), "pillar"),
+                    Decoration(pygame.Rect(470, 100, 20, 20), (255, 210, 120), "lamp"),
+                    Decoration(pygame.Rect(470, 500, 20, 20), (255, 210, 120), "lamp"),
+                    Decoration(pygame.Rect(300, 310, 28, 8), (84, 94, 114), "rune"),
+                    Decoration(pygame.Rect(470, 310, 28, 8), (84, 94, 114), "rune"),
+                    Decoration(pygame.Rect(680, 310, 28, 8), (84, 94, 114), "rune"),
+                ],
+                "shop_zone": pygame.Rect(820, 525, 130, 90),
+            },
+            {
+                "name": "Arena Antigua",
+                "walls": [
+                    # Estructura circular con arena central
+                    pygame.Rect(120, 80, 720, 20),
+                    pygame.Rect(120, 540, 720, 20),
+                    pygame.Rect(120, 100, 20, 440),
+                    pygame.Rect(820, 100, 20, 440),
+                    # Arena interior delimitada
+                    pygame.Rect(300, 200, 20, 240),
+                    pygame.Rect(640, 200, 20, 240),
+                    pygame.Rect(300, 200, 340, 20),
+                    pygame.Rect(300, 420, 340, 20),
+                    # Entradas a la arena
+                    pygame.Rect(320, 200, 100, 20),
+                    pygame.Rect(540, 200, 100, 20),
+                ],
+                "enemy_specs": [
+                    (180, 150, 80, "terrestre"),
+                    (760, 150, 80, "volador"),
+                    (180, 470, 85, "volador"),
+                    (760, 470, 85, "terrestre"),
+                    (470, 310, 130, "mini_jefe"),
+                ],
+                "treasure_positions": [(150, 120), (820, 120), (150, 520), (820, 520)],
+                "trap_positions": [((470, 140), 14), ((310, 310), 12), ((630, 310), 12)],
+                "zones": [
+                    ("Gradas Oeste", pygame.Rect(130, 110, 170, 420)),
+                    ("Arena Central", pygame.Rect(320, 220, 320, 200)),
+                    ("Gradas Este", pygame.Rect(660, 110, 160, 420)),
+                ],
+                "decorations": [
+                    Decoration(pygame.Rect(200, 250, 16, 50), (122, 135, 155), "pillar"),
+                    Decoration(pygame.Rect(740, 250, 16, 50), (122, 135, 155), "pillar"),
+                    Decoration(pygame.Rect(470, 160, 20, 20), (255, 210, 120), "lamp"),
+                    Decoration(pygame.Rect(470, 480, 20, 20), (255, 210, 120), "lamp"),
+                    Decoration(pygame.Rect(420, 310, 28, 8), (84, 94, 114), "rune"),
+                    Decoration(pygame.Rect(520, 310, 28, 8), (84, 94, 114), "rune"),
+                    Decoration(pygame.Rect(150, 300, 8, 40), (84, 94, 114), "rune"),
+                    Decoration(pygame.Rect(802, 300, 8, 40), (84, 94, 114), "rune"),
+                ],
+                "shop_zone": pygame.Rect(845, 525, 130, 90),
+            },
         ]
 
     def _build_walls(self) -> list[pygame.Rect]:
@@ -239,3 +396,111 @@ class World:
 
     def _spawn_decorations(self) -> list[Decoration]:
         return [Decoration(item.rect.copy(), item.color, item.kind) for item in self.layout["decorations"]]
+
+    def _validate_chamber_accessibility(self) -> None:
+        """Verifica si el mini-jefe es accesible desde la posición inicial del jugador (60, 60).
+        Si no es accesible, automáticamente abre pasajes para garantizar acceso."""
+        
+        # El mini-jefe siempre es el último enemigo en la lista
+        if not self.layout["enemy_specs"]:
+            return
+        
+        jefe_x, jefe_y, _, _ = self.layout["enemy_specs"][-1]
+        jefe_pos = (jefe_x, jefe_y)
+        
+        # Verificar si el jefe es alcanzable
+        if self._is_position_reachable((60, 60), jefe_pos):
+            return  # El jefe es accesible, no hay nada que hacer
+        
+        # Si no es accesible, intentar abrir pasajes
+        self._fix_sealed_chamber(jefe_pos)
+
+    def _is_position_reachable(self, start_pos: tuple[int, int], end_pos: tuple[int, int]) -> bool:
+        """Usa flood-fill para verificar si end_pos es alcanzable desde start_pos sin atravesar muros."""
+        
+        TILE_SIZE = 20
+        GRID_WIDTH = 960 // TILE_SIZE
+        GRID_HEIGHT = 640 // TILE_SIZE
+        
+        # Convertir posiciones a coordenadas de grilla (usando centro del jugador/jefe)
+        start_tile = (int(start_pos[0] // TILE_SIZE), int(start_pos[1] // TILE_SIZE))
+        end_tile = (int(end_pos[0] // TILE_SIZE), int(end_pos[1] // TILE_SIZE))
+        
+        # Crear grilla de tiles bloqueados
+        blocked = [[False for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+        
+        # Marcar tiles bloqueados por muros
+        for wall in self.walls:
+            # Convertir rect del muro a tiles bloqueados
+            tile_x1 = wall.left // TILE_SIZE
+            tile_y1 = wall.top // TILE_SIZE
+            tile_x2 = (wall.right - 1) // TILE_SIZE
+            tile_y2 = (wall.bottom - 1) // TILE_SIZE
+            
+            for ty in range(max(0, tile_y1), min(GRID_HEIGHT, tile_y2 + 1)):
+                for tx in range(max(0, tile_x1), min(GRID_WIDTH, tile_x2 + 1)):
+                    blocked[ty][tx] = True
+        
+        # Flood-fill desde start_tile
+        visited = [[False for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+        queue = [start_tile]
+        visited[start_tile[1]][start_tile[0]] = True
+        
+        while queue:
+            tx, ty = queue.pop(0)
+            
+            # Si alcanzamos el tile del jefe, es alcanzable
+            if (tx, ty) == end_tile:
+                return True
+            
+            # Explorar vecinos (4 direcciones)
+            for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                nx, ny = tx + dx, ty + dy
+                
+                if 0 <= nx < GRID_WIDTH and 0 <= ny < GRID_HEIGHT:
+                    if not visited[ny][nx] and not blocked[ny][nx]:
+                        visited[ny][nx] = True
+                        queue.append((nx, ny))
+        
+        return False
+
+    def _fix_sealed_chamber(self, jefe_pos: tuple[int, int]) -> None:
+        """Automáticamente abre pasajes removiendo muros para hacer accesible el jefe."""
+        
+        TILE_SIZE = 20
+        jefe_tile = (int(jefe_pos[0] // TILE_SIZE), int(jefe_pos[1] // TILE_SIZE))
+        
+        # Encontrar muros que están bloqueando el acceso
+        candidate_walls = []
+        
+        for i, wall in enumerate(self.walls):
+            # Convertir wall rect a tiles
+            wall_tiles = set()
+            tile_x1 = wall.left // TILE_SIZE
+            tile_y1 = wall.top // TILE_SIZE
+            tile_x2 = (wall.right - 1) // TILE_SIZE
+            tile_y2 = (wall.bottom - 1) // TILE_SIZE
+            
+            for ty in range(max(0, tile_y1), min(32, tile_y2 + 1)):
+                for tx in range(max(0, tile_x1), min(48, tile_x2 + 1)):
+                    wall_tiles.add((tx, ty))
+            
+            # Calcular distancia de este muro al jefe
+            min_dist = min(
+                abs(jefe_tile[0] - tx) + abs(jefe_tile[1] - ty)
+                for tx, ty in wall_tiles
+            )
+            
+            # Solo considerar muros cercanos al jefe (dentro de 5 tiles)
+            if min_dist <= 5 and i > 0:  # No remover muros de borde
+                candidate_walls.append((min_dist, i, wall))
+        
+        # Remover el muro más cercano
+        if candidate_walls:
+            candidate_walls.sort()
+            _, wall_idx, wall_to_remove = candidate_walls[0]
+            self.walls.pop(wall_idx)
+            
+            # Verificar si ahora es accesible; si no, remover otro muro
+            if not self._is_position_reachable((60, 60), jefe_pos):
+                self._fix_sealed_chamber(jefe_pos)  # Recursivamente abrir más pasajes
