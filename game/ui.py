@@ -17,12 +17,14 @@ class UI:
     def draw_hud(
         self,
         surface: pygame.Surface,
+        floor: int,
         hp: int,
         max_hp: int,
         level: int,
         xp: int,
         gold: int,
         score: int,
+        objective_score: int,
         active_weapon: str,
         unlocked_weapons: list[str],
         zone_name: str,
@@ -31,10 +33,11 @@ class UI:
         event_description: str,
         quest_text: str,
     ) -> None:
+        floor_text = self.font.render(f"Piso: {floor}", True, settings.TEXT_COLOR)
         hp_text = self.font.render(f"HP: {hp}/{max_hp}", True, settings.TEXT_COLOR)
         level_text = self.font.render(f"Nivel: {level}  XP: {xp}", True, settings.TEXT_COLOR)
         gold_text = self.font.render(f"Oro: {gold}", True, settings.TEXT_COLOR)
-        score_text = self.font.render(f"Puntaje: {score}/{settings.OBJECTIVE_SCORE}", True, settings.TEXT_COLOR)
+        score_text = self.font.render(f"Puntaje: {score}/{objective_score}", True, settings.TEXT_COLOR)
         weapon_text = self.font.render(f"Arma: {active_weapon}", True, settings.TEXT_COLOR)
         zone_text = self.small_font.render(f"Objetivo: {zone_name}", True, settings.TEXT_COLOR)
         progress_text = self.small_font.render(zone_progress, True, settings.TEXT_COLOR)
@@ -42,16 +45,17 @@ class UI:
         event_desc_text = self.small_font.render(event_description, True, settings.TEXT_COLOR)
         quest_text_surface = self.small_font.render(quest_text, True, settings.TEXT_COLOR)
 
-        surface.blit(hp_text, (24, 20))
-        surface.blit(level_text, (24, 50))
-        surface.blit(gold_text, (24, 80))
-        surface.blit(score_text, (24, 110))
-        surface.blit(weapon_text, (24, 140))
-        surface.blit(zone_text, (24, 180))
-        surface.blit(progress_text, (24, 205))
-        surface.blit(event_text, (24, 235))
-        surface.blit(event_desc_text, (24, 260))
-        surface.blit(quest_text_surface, (24, 285))
+        surface.blit(floor_text, (24, 20))
+        surface.blit(hp_text, (24, 50))
+        surface.blit(level_text, (24, 80))
+        surface.blit(gold_text, (24, 110))
+        surface.blit(score_text, (24, 140))
+        surface.blit(weapon_text, (24, 170))
+        surface.blit(zone_text, (24, 205))
+        surface.blit(progress_text, (24, 230))
+        surface.blit(event_text, (24, 260))
+        surface.blit(event_desc_text, (24, 285))
+        surface.blit(quest_text_surface, (24, 310))
 
         weapon_hint = self.small_font.render("1-3 cambian arma | Espacio: disparar | E: tienda", True, settings.TEXT_COLOR)
         unlocked_text = self.small_font.render(f"Desbloqueadas: {', '.join(unlocked_weapons)}", True, settings.TEXT_COLOR)
