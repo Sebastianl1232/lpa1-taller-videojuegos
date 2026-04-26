@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -11,7 +11,7 @@ class Achievement:
     id: str
     name: str
     description: str
-    icon: str  # Emoji o símbolo
+    icon: str
     unlocked: bool = False
     progress: int = 0
     max_progress: int = 1
@@ -36,105 +36,105 @@ class AchievementManager:
                 id="first_enemy",
                 name="Primer disparo",
                 description="Derrota tu primer enemigo",
-                icon="🎯",
+                icon="TGT",
                 max_progress=1
             ),
             Achievement(
                 id="slayer_10",
                 name="Cazador de 10",
                 description="Derrota 10 enemigos",
-                icon="⚔️",
+                icon="SWD",
                 max_progress=10
             ),
             Achievement(
                 id="slayer_50",
                 name="Cazador de 50",
                 description="Derrota 50 enemigos",
-                icon="🔥",
+                icon="FIR",
                 max_progress=50
             ),
             Achievement(
                 id="treasure_hunter",
                 name="Cazador de tesoros",
                 description="Recoge 5 tesoros",
-                icon="💎",
+                icon="GEM",
                 max_progress=5
             ),
             Achievement(
                 id="treasure_master",
                 name="Maestro de tesoros",
                 description="Recoge 20 tesoros",
-                icon="👑",
+                icon="CRN",
                 max_progress=20
             ),
             Achievement(
                 id="level_5",
                 name="En ascenso",
                 description="Alcanza nivel 5",
-                icon="📈",
+                icon="LV5",
                 max_progress=5
             ),
             Achievement(
                 id="level_10",
                 name="Héroe experimentado",
                 description="Alcanza nivel 10",
-                icon="⭐",
+                icon="LV10",
                 max_progress=10
             ),
             Achievement(
                 id="all_weapons",
                 name="Arsenal completo",
                 description="Desbloquea las 3 armas",
-                icon="🎖️",
+                icon="ARM",
                 max_progress=3
             ),
             Achievement(
                 id="miniboss_defeated",
                 name="Vencedor del mini-jefe",
                 description="Derrota al mini-jefe",
-                icon="🐉",
+                icon="BOS",
                 max_progress=1
             ),
             Achievement(
                 id="hard_mode",
                 name="Dificultad extrema",
                 description="Completa el juego en difícil",
-                icon="💀",
+                icon="HRD",
                 max_progress=1
             ),
             Achievement(
                 id="survivor",
                 name="Superviviente",
                 description="Sobrevive 5 minutos sin daño",
-                icon="🛡️",
+                icon="DEF",
                 max_progress=1
             ),
             Achievement(
                 id="rich",
                 name="Adinerado",
                 description="Acumula 500 de oro",
-                icon="💰",
+                icon="GLD",
                 max_progress=500
             ),
             Achievement(
                 id="speed_run",
                 name="Velocidad",
                 description="Completa el juego en menos de 3 minutos",
-                icon="⚡",
+                icon="SPD",
                 max_progress=180  # segundos
             ),
             Achievement(
                 id="perfect_zone",
                 name="Sector perfecto",
                 description="Completa una zona sin morir",
-                icon="🎖️",
+                icon="ZON",
                 max_progress=1
             ),
             Achievement(
                 id="first_victory",
                 name="Primera victoria",
                 description="Gana tu primer juego",
-                icon="🏆",
+                icon="WIN",
                 max_progress=1
             ),
         ]
@@ -148,7 +148,6 @@ class AchievementManager:
             return
         
         achievement = self.achievements[achievement_id]
-        old_progress = achievement.progress
         
         # Incrementar progreso hasta el máximo
         achievement.progress = min(progress, achievement.max_progress)
