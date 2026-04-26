@@ -300,3 +300,94 @@ class UI:
         y = (settings.SCREEN_HEIGHT - text.get_height()) // 2
         surface.blit(shadow, (x + 2, y + 2))
         surface.blit(text, (x, y))
+
+    def draw_achievement_notification(
+        self, surface: pygame.Surface, achievement_icon: str, achievement_name: str, achievement_desc: str
+    ) -> None:
+        """Dibuja una notificación de logro desbloqueado en la esquina inferior derecha."""
+        box_width = 320
+        box_height = 90
+        margin = 20
+        x = settings.SCREEN_WIDTH - box_width - margin
+        y = settings.SCREEN_HEIGHT - box_height - margin
+
+        # Fondo del cuadro
+        pygame.draw.rect(surface, (35, 43, 56), (x, y, box_width, box_height), border_radius=10)
+        pygame.draw.rect(surface, (100, 200, 150), (x, y, box_width, box_height), 3, border_radius=10)
+
+        # Icono
+        icon_font = pygame.font.SysFont("consolas", 40, bold=True)
+        icon_text = icon_font.render(achievement_icon, True, (100, 200, 150))
+        surface.blit(icon_text, (x + 15, y + 12))
+
+        # Texto "Logro desbloqueado"
+        label = self.small_font.render("LOGRO DESBLOQUEADO", True, (100, 200, 150))
+        surface.blit(label, (x + 65, y + 10))
+
+        # Nombre del logro
+        name_text = self.small_font.render(achievement_name, True, (255, 255, 255))
+        surface.blit(name_text, (x + 65, y + 32))
+
+        # Descripción
+        desc_font = pygame.font.SysFont("consolas", 16)
+        desc_text = desc_font.render(achievement_desc, True, (180, 180, 180))
+        surface.blit(desc_text, (x + 65, y + 55))
+
+    def draw_achievements_menu(
+        self, surface: pygame.Surface, achievements_data: dict, unlocked_count: int, total_count: int
+    ) -> None:
+        """Dibuja un menú de logros."""
+        overlay = pygame.Surface((settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 190))
+        surface.blit(overlay, (0, 0))
+
+        title = self.font.render(f"LOGROS ({unlocked_count}/{total_count})", True, (100, 200, 150))
+        surface.blit(title, ((settings.SCREEN_WIDTH - title.get_width()) // 2, 40))
+
+        # Mostrar logros en una cuadrícula
+        entries = []
+        for ach_id, ach in achievements_data.items():
+            icon = ach["icon"]
+            name = ach["name"]
+            description = ach["description"]
+            unlocked = ach["unlocked"]
+            entries.append((icon, name, description, unlocked))
+
+        # Renderizar en dos columnas
+        cols = 2
+        rows = (len(entries) + cols - 1) // cols
+        box_width = (settings.SCREEN_WIDTH - 100) // cols
+        box_height = 100
+        start_y = 120
+
+        for idx, (icon, name, description, unlocked) in enumerate(entries):
+            row = idx // cols
+            col = idx % cols
+            x = 40 + col * box_width
+            y = start_y + row * box_height
+
+            # Fondo
+            color = (50, 80, 60) if unlocked else (50, 50, 60)
+            pygame.draw.rect(surface, color, (x, y, box_width - 20, box_height - 10), border_radius=5)
+            pygame.draw.rect(surface, (100, 200, 150) if unlocked else (80, 80, 100), (x, y, box_width - 20, box_height - 10), 2, border_radius=5)
+
+            # Icono
+            icon_text = self.font.render(icon, True, (100, 200, 150) if unlocked else (120, 120, 120))
+            surface.blit(icon_text, (x + 10, y + 8))
+
+            # Nombre
+            name_text = self.small_font.render(name, True, (255, 255, 255) if unlocked else (150, 150, 150))
+            surface.blit(name_text, (x + 50, y + 8))
+
+            # Descripción
+            desc_font = pygame.font.SysFont("consolas", 14)
+            desc_text = desc_font.render(description, True, (180, 180, 180) if unlocked else (100, 100, 100))
+            surface.blit(desc_text, (x + 50, y + 35))
+
+            # Indicador de completado
+            if unlocked:
+                status_text = self.small_font.render("✓", True, (100, 200, 150))
+                surface.blit(status_text, (x + box_width - 40, y + 8))
+
+        hint = self.small_font.render("Esc para cerrar", True, settings.TEXT_COLOR)
+        surface.blit(hint, ((settings.SCREEN_WIDTH - hint.get_width()) // 2, settings.SCREEN_HEIGHT - 30))
