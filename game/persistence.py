@@ -21,6 +21,7 @@ class GameSave:
     total_damage_taken: int = 0
     unlocked_weapons: list[str] = field(default_factory=lambda: ["basic"])
     active_weapon: str = "basic"
+    achievements: dict[str, dict] = field(default_factory=dict)
 
 
 def load_game_save() -> GameSave:
@@ -42,6 +43,7 @@ def load_game_save() -> GameSave:
         total_damage_taken=int(data.get("total_damage_taken", 0)),
         unlocked_weapons=list(data.get("unlocked_weapons", ["basic"])),
         active_weapon=str(data.get("active_weapon", "basic")),
+        achievements=dict(data.get("achievements", {})),
     )
 
 
