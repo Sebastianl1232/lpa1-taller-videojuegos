@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import random
 
 import pygame
@@ -24,6 +25,17 @@ class Game:
         pygame.display.set_caption(settings.TITLE)
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("consolas", 28)
+        self._background_cache: dict[str, pygame.Surface] = {}
+        self._background_surface: pygame.Surface | None = None
+        self._player_skin: dict[str, pygame.Surface | list[pygame.Surface]] = {}
+        self._player_skin_scale = (48, 64)
+        self._player_anim_time = 0.0
+        self._player_is_moving = False
+        self._player_last_move = pygame.Vector2(0, 1)
+        self._player_attack_anim_timer = 0.0
+        self._player_attack_anim_duration = 0.24
+        self._player_attack_style = "basic"
+        self._load_player_skin()
 
         self.ui = UI(self.font)
         self.audio = AudioManager()
@@ -40,9 +52,12 @@ class Game:
         self.projectiles: list[Projectile] = []
         self.particles: list[Particle] = []
         self.world = World(difficulty=self.difficulty, floor=self.floor)
+        self._load_world_background()
         self.score = 0
         self.attack_cooldown = 0.0
         self.contact_damage_timer = 0.0
+        self._player_attack_anim_timer = 0.0
+        self._player_attack_style = "basic"
         self.pending_level_ups = 0
         self.level_up_options: list[dict[str, str]] = []
         self.message = ""
@@ -173,6 +188,7 @@ class Game:
         self._accumulated_time += dt
         self.attack_cooldown = max(0.0, self.attack_cooldown - dt)
         self.contact_damage_timer = max(0.0, self.contact_damage_timer - dt)
+        self._player_attack_anim_timer = max(0.0, self._player_attack_anim_timer - dt)
 
         if self._level_up_menu_open():
             return
@@ -184,6 +200,13 @@ class Game:
             (1 if keys[pygame.K_s] or keys[pygame.K_DOWN] else 0)
             - (1 if keys[pygame.K_w] or keys[pygame.K_UP] else 0),
         )
+        self._player_is_moving = direction.length_squared() > 0
+        if self._player_is_moving:
+            self._player_last_move = direction.normalize()
+            self._player_anim_time += dt * 10.0
+        else:
+            self._player_anim_time = 0.0
+
         self.player.move(direction, dt, self.world.walls)
 
         for enemy in self.world.enemies:
@@ -215,6 +238,13 @@ class Game:
             shot_direction = shot_direction.normalize()
 
         self.player.facing = shot_direction
+        self._player_attack_style = weapon.key
+        if weapon.key == "rapid":
+            self._player_attack_anim_duration = 0.13
+        elif weapon.key == "heavy":
+            self._player_attack_anim_duration = 0.34
+        else:
+            self._player_attack_anim_duration = 0.24
         self.projectiles.append(
             Projectile(
                 x=self.player.rect.centerx,
@@ -225,6 +255,7 @@ class Game:
             )
         )
         self.audio.play("shoot")
+        self._player_attack_anim_timer = self._player_attack_anim_duration
         self._spawn_burst(
             x=self.player.rect.centerx + int(shot_direction.x * 12),
             y=self.player.rect.centery + int(shot_direction.y * 12),
@@ -471,13 +502,17 @@ class Game:
         }
 
     def _draw(self, dt: float) -> None:
-        self.screen.fill(settings.BACKGROUND_COLOR)
+        if self._background_surface is not None:
+            self.screen.blit(self._background_surface, (0, 0))
+        else:
+            self.screen.fill(settings.BACKGROUND_COLOR)
         
         # Actualizar animaciones del UI
         if self.game_state in ("title", "achievements"):
             self.ui._update_title_animation(dt)
 
-        self._draw_background_grid()
+        if self._background_surface is None:
+            self._draw_background_grid()
 
         for zone in self.world.objective_zones:
             self._draw_zone_backdrop(zone)
@@ -521,7 +556,7 @@ class Game:
             )
 
         if self._should_draw_player():
-            pygame.draw.rect(self.screen, settings.PLAYER_COLOR, self.player.rect)
+            self._draw_player()
 
         if self.game_state in ("title", "achievements"):
             self.ui.draw_title_screen(
@@ -686,6 +721,135 @@ class Game:
 
         blink_phase = (pygame.time.get_ticks() // settings.PLAYER_BLINK_INTERVAL_MS) % 2
         return blink_phase == 0
+
+    def _load_player_skin(self) -> None:
+        project_root = os.path.dirname(os.path.dirname(__file__))
+        poses_dir = os.path.join(project_root, "docs", "Male adventurer", "PNG", "Poses")
+
+        required_files = {
+            "idle": "character_maleAdventurer_idle.png",
+            "back": "character_maleAdventurer_back.png",
+            "down": "character_maleAdventurer_down.png",
+        }
+        walk_files = [
+            "character_maleAdventurer_walk0.png",
+            "character_maleAdventurer_walk1.png",
+            "character_maleAdventurer_walk2.png",
+            "character_maleAdventurer_walk3.png",
+            "character_maleAdventurer_walk4.png",
+            "character_maleAdventurer_walk5.png",
+            "character_maleAdventurer_walk6.png",
+            "character_maleAdventurer_walk7.png",
+        ]
+        attack_files = [
+            "character_maleAdventurer_attack0.png",
+            "character_maleAdventurer_attack1.png",
+            "character_maleAdventurer_attack2.png",
+        ]
+
+        loaded: dict[str, pygame.Surface | list[pygame.Surface]] = {}
+        try:
+            for key, filename in required_files.items():
+                path = os.path.join(poses_dir, filename)
+                if not os.path.exists(path):
+                    self._player_skin = {}
+                    return
+                surface = pygame.image.load(path).convert_alpha()
+                loaded[key] = pygame.transform.smoothscale(surface, self._player_skin_scale)
+
+            walk_frames: list[pygame.Surface] = []
+            for filename in walk_files:
+                path = os.path.join(poses_dir, filename)
+                if not os.path.exists(path):
+                    self._player_skin = {}
+                    return
+                surface = pygame.image.load(path).convert_alpha()
+                walk_frames.append(pygame.transform.smoothscale(surface, self._player_skin_scale))
+
+            loaded["walk"] = walk_frames
+
+            attack_frames: list[pygame.Surface] = []
+            for filename in attack_files:
+                path = os.path.join(poses_dir, filename)
+                if not os.path.exists(path):
+                    attack_frames = []
+                    break
+                surface = pygame.image.load(path).convert_alpha()
+                attack_frames.append(pygame.transform.smoothscale(surface, self._player_skin_scale))
+            loaded["attack"] = attack_frames
+
+            self._player_skin = loaded
+        except (pygame.error, OSError):
+            self._player_skin = {}
+
+    def _draw_player(self) -> None:
+        if not self._player_skin:
+            pygame.draw.rect(self.screen, settings.PLAYER_COLOR, self.player.rect)
+            return
+
+        idle = self._player_skin.get("idle")
+        down = self._player_skin.get("down")
+        back = self._player_skin.get("back")
+        walk_frames = self._player_skin.get("walk")
+        attack_frames = self._player_skin.get("attack")
+        if not isinstance(idle, pygame.Surface) or not isinstance(down, pygame.Surface) or not isinstance(back, pygame.Surface) or not isinstance(walk_frames, list) or not walk_frames:
+            pygame.draw.rect(self.screen, settings.PLAYER_COLOR, self.player.rect)
+            return
+
+        sprite = idle
+        move = self._player_last_move
+        horizontal = abs(move.x) >= abs(move.y)
+
+        if self._player_attack_anim_timer > 0 and isinstance(attack_frames, list) and attack_frames:
+            progress = 1.0 - (self._player_attack_anim_timer / self._player_attack_anim_duration)
+            if self._player_attack_style == "rapid":
+                # Ráfaga: animacion corta y nerviosa (ida y vuelta entre frames).
+                cycle = max(1, (len(attack_frames) * 2) - 2)
+                phase = int(progress * cycle)
+                attack_index = phase if phase < len(attack_frames) else cycle - phase
+            elif self._player_attack_style == "heavy":
+                # Cañon: inicio lento y remate fuerte en el ultimo frame.
+                if progress < 0.35:
+                    attack_index = 0
+                elif progress < 0.7:
+                    attack_index = min(1, len(attack_frames) - 1)
+                else:
+                    attack_index = len(attack_frames) - 1
+            else:
+                attack_index = min(len(attack_frames) - 1, int(progress * len(attack_frames)))
+            sprite = attack_frames[attack_index]
+            facing = self.player.facing
+            if facing.x < -0.2:
+                sprite = pygame.transform.flip(sprite, True, False)
+            elif abs(facing.y) > abs(facing.x):
+                if facing.y < 0:
+                    sprite = back
+                else:
+                    sprite = down
+        elif self._player_is_moving:
+            frame_index = int(self._player_anim_time) % len(walk_frames)
+            if horizontal:
+                sprite = walk_frames[frame_index]
+                if move.x < 0:
+                    sprite = pygame.transform.flip(sprite, True, False)
+            else:
+                if move.y < 0:
+                    sprite = back
+                else:
+                    sprite = down
+        else:
+            if horizontal and move.x < 0:
+                sprite = pygame.transform.flip(idle, True, False)
+            elif not horizontal and move.y < 0:
+                sprite = back
+            elif not horizontal and move.y >= 0:
+                sprite = down
+            else:
+                sprite = idle
+
+        draw_rect = sprite.get_rect()
+        draw_rect.midbottom = (self.player.rect.centerx, self.player.rect.bottom + 6)
+        self.screen.blit(sprite, draw_rect)
 
     def _grant_xp(self, amount: int) -> None:
         levels_gained = self.player.gain_xp(amount)
@@ -955,6 +1119,7 @@ class Game:
         self.floor += 1
         self.objective_score = self._floor_objective_score()
         self.world = World(difficulty=self.difficulty, floor=self.floor)
+        self._load_world_background()
         self.player.rect.topleft = (60, 60)
         self.player.hp = min(self.player.stats.max_hp, self.player.hp + 22)
         self.active_zone_index = 0
@@ -983,3 +1148,35 @@ class Game:
             life_range=(0.2, 0.5),
             radius_range=(2, 5),
         )
+
+    def _load_world_background(self) -> None:
+        layout_name = self.world.layout.get("name", "")
+        sanitized = "_".join(layout_name.lower().split())
+        candidates = [
+            f"{sanitized}.png",
+            f"floor_{self.floor}.png",
+            "default.png",
+        ]
+
+        project_root = os.path.dirname(os.path.dirname(__file__))
+        backgrounds_dir = os.path.join(project_root, "assets", "backgrounds")
+
+        self._background_surface = None
+        for filename in candidates:
+            image_path = os.path.join(backgrounds_dir, filename)
+            if not os.path.exists(image_path):
+                continue
+
+            if image_path not in self._background_cache:
+                try:
+                    image = pygame.image.load(image_path).convert()
+                    self._background_cache[image_path] = pygame.transform.smoothscale(
+                        image,
+                        (settings.SCREEN_WIDTH, settings.SCREEN_HEIGHT),
+                    )
+                except (pygame.error, OSError):
+                    continue
+
+            self._background_surface = self._background_cache.get(image_path)
+            if self._background_surface is not None:
+                break
