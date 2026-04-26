@@ -8,6 +8,7 @@ import pygame
 
 from game import settings
 from game.audio import AudioManager
+from game.achievements import AchievementManager
 from game.entities import Particle, Player, Projectile
 from game.persistence import GameSave, load_game_save, save_game_save
 from game.ui import UI
@@ -25,6 +26,8 @@ class Game:
         self.ui = UI(self.font)
         self.audio = AudioManager()
         self.save_data = load_game_save()
+        self.achievements = AchievementManager()
+        self.achievements.from_dict(self.save_data.achievements)
         self.difficulty = "normal"
         self.reset()
 
@@ -56,6 +59,8 @@ class Game:
         }
         self._accumulated_time = 0.0
         self._session_saved = False
+        self._no_damage_timer = 0.0
+        self._achievement_notifications: list[tuple[str, str, str, float]] = []  # (icon, name, desc, time)
         self._roll_zone_event(first_event=True)
         self._generate_side_quest()
 
@@ -171,6 +176,7 @@ class Game:
         self._check_enemy_collisions()
         self._check_objective_zones()
         self._check_game_state()
+        self._update_achievement_notifications(dt)
 
     def _player_attack(self) -> None:
         if self.attack_cooldown > 0:
@@ -283,6 +289,12 @@ class Game:
                 self._grant_xp(10)
                 self.score += treasure_value
                 self.frame_stats["treasures_collected"] += 1
+                
+                # Trackear logros de tesoros
+                self.achievements.increment_progress("treasure_hunter", 1)
+                self.achievements.increment_progress("treasure_master", 1)
+                self.achievements.increment_progress("rich", treasure_value)
+                
                 self.audio.play("pickup")
                 self._spawn_burst(
                     x=treasure.rect.centerx,
@@ -403,8 +415,42 @@ class Game:
             self.victory = True
             self.game_state = "victory"
             self.message = "Victoria. Presiona R para jugar otra vez"
+            
+            # Trackear logros de victoria
+            self.achievements.unlock("first_victory")
+            if self.difficulty == "hard":
+                self.achievements.unlock("hard_mode")
+            if self._accumulated_time < 180:  # 3 minutos
+                self.achievements.unlock("speed_run")
+            
             self._finalize_session(victory=True)
             self.audio.play("victory")
+
+    def _update_achievement_notifications(self, dt: float) -> None:
+        newly_unlocked = self.achievements.get_newly_unlocked()
+        for achievement_id in newly_unlocked:
+            achievement = self.achievements.achievements.get(achievement_id)
+            if achievement is None:
+                continue
+            self._achievement_notifications.append((achievement.icon, achievement.name, achievement.description, 4.0))
+
+        updated_notifications: list[tuple[str, str, str, float]] = []
+        for icon, name, description, timer in self._achievement_notifications:
+            timer -= dt
+            if timer > 0:
+                updated_notifications.append((icon, name, description, timer))
+        self._achievement_notifications = updated_notifications
+
+    def _achievement_ui_data(self) -> dict[str, dict[str, object]]:
+        return {
+            achievement_id: {
+                "icon": achievement.icon,
+                "name": achievement.name,
+                "description": achievement.description,
+                "unlocked": achievement.unlocked,
+            }
+            for achievement_id, achievement in self.achievements.achievements.items()
+        }
 
     def _draw(self, dt: float) -> None:
         self.screen.fill(settings.BACKGROUND_COLOR)
@@ -586,6 +632,11 @@ class Game:
             self.pending_level_ups += levels_gained
             if not self.level_up_options:
                 self.level_up_options = self._build_level_up_options()
+            
+            # Trackear logros de nivel
+            self.achievements.increment_progress("level_5", levels_gained)
+            self.achievements.increment_progress("level_10", levels_gained)
+            
             self.audio.play("levelup")
 
     def _level_up_menu_open(self) -> bool:
@@ -652,10 +703,12 @@ class Game:
         elif upgrade_key == "unlock_rapid":
             self.player.unlock_weapon("rapid")
             self.player.set_active_weapon("rapid")
+            self.achievements.increment_progress("all_weapons", 1)
             self.message = "Desbloqueaste Rafaga"
         elif upgrade_key == "unlock_heavy":
             self.player.unlock_weapon("heavy")
             self.player.set_active_weapon("heavy")
+            self.achievements.increment_progress("all_weapons", 1)
             self.message = "Desbloqueaste Canon"
 
         self.pending_level_ups = max(0, self.pending_level_ups - 1)
@@ -668,8 +721,15 @@ class Game:
         self.frame_stats["enemies_defeated"] += 1
         if enemy.enemy_type == "mini_jefe":
             self.score += 40
+            self.achievements.unlock("miniboss_defeated")
         else:
             self.score += 25
+        
+        # Trackear logros de enemigos derrotados
+        self.achievements.increment_progress("first_enemy", 1)
+        self.achievements.increment_progress("slayer_10", 1)
+        self.achievements.increment_progress("slayer_50", 1)
+        
         self._advance_side_quest("enemy")
 
     def _finalize_session(self, victory: bool) -> None:
@@ -677,6 +737,11 @@ class Game:
             return
 
         self._session_saved = True
+        
+        # Trackear logro de superviviente (sin daño por 5 minutos)
+        if self.frame_stats["damage_taken"] == 0 and self._accumulated_time >= 300:
+            self.achievements.unlock("survivor")
+        
         self.save_data.total_runs += 1
         self.save_data.total_enemies_defeated += self.frame_stats["enemies_defeated"]
         self.save_data.total_treasures_collected += self.frame_stats["treasures_collected"]
@@ -685,6 +750,7 @@ class Game:
         self.save_data.best_level = max(self.save_data.best_level, self.player.level)
         self.save_data.active_weapon = self.player.active_weapon_key
         self.save_data.unlocked_weapons = sorted(self.player.unlocked_weapons)
+        self.save_data.achievements = self.achievements.to_dict()
         save_game_save(self.save_data)
 
     def _roll_zone_event(self, first_event: bool = False) -> None:
